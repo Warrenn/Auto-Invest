@@ -1,0 +1,250 @@
+AWSTemplateFormatVersion: '2010-09-09'
+
+Description: Template to deploy auto invest instance
+
+Metadata:
+  cfn-lint:
+    config:
+      ignore_checks:
+      - W1001
+      - E2507
+      - W3005
+      - E3002
+      - E3012
+
+Parameters:
+  VPCId:
+    Type: AWS::EC2::VPC::Id
+    Description: The ID of the VPC
+  SubnetId:
+    Type: AWS::EC2::Subnet::Id
+    Description: The ID of the subnet in the VPC
+  UserIp:
+    Type: String
+    Description: The IP address that the user is currently using to deploy the instance
+  KeyPair:
+    Type: AWS::EC2::KeyPair::KeyName
+    Description: The key pair to enable ssh onto the intstance
+  AmiId:
+    Description: 
+      The name of the AMI id to use for running the auto invest app
+    Type: 'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
+    Default: '/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2'
+  InstanceType:
+    Description: 
+      The instance type the SQS monitor will be using
+    Type: String
+    Default: t3.micro
+  SettingsPrefix:
+    Type: String
+    Description: The parameter store prefix for the settings
+    Default: 'auto-invest'
+  LogRetention:
+    Type: Number
+    Description: The number of days to keep the cloudwatch logs
+    Default: 30
+  LogGroupPrefix:
+    Type: String
+    Description: The Prefix in front of the log group name
+    Default: auto-invest
+  S3ArtifactBucket:
+    Type: String
+    Description: The Bucket the deployment artifacts are stored
+    Default: insecure-artifacts-93648082bbed41458cac8d7814803d3c
+  ArtifactPath:
+    Type: String
+    Description: The relative S3 path in the artifact bucket location for the artifacts
+    Default: /auto-invest
+    
+Resources:
+
+  SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Enable SSH access for VPN users
+      SecurityGroupIngress:
+        - FromPort: 22
+          IpProtocol: tcp
+          ToPort: 22
+          CidrIp: !Sub "${UserIp}/32"
+        - FromPort: 5000
+          IpProtocol: tcp
+          ToPort: 5000
+          CidrIp: !Sub "${UserIp}/32"
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: '0.0.0.0/0'
+      VpcId: !Ref VPCId
+
+  AutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      MaxSize: "1"
+      MinSize: "0"
+      DesiredCapacity: "1"
+      VPCZoneIdentifier: 
+        - !Ref SubnetId
+      LaunchTemplate:
+        LaunchTemplateId: !Ref LaunchTemplate
+        Version: !GetAtt LaunchTemplate.LatestVersionNumber
+  
+  InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: /
+      Roles:
+        - !Ref InstanceRole
+  
+  InstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: auto-invest-role
+      Path: /
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: auto-invest-role-policy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                  - logs:DescribeLogGroups
+                Resource: arn:aws:logs:*:*:*
+              - Effect: Allow
+                Action:
+                  - autoscaling:*
+                  - cloudwatch:*
+                  - ec2:Describe*
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - S3:Get*
+                Resource: "*"                
+                # TODO: finish the pemissions to 
+                # parameter store
+                # S3 artifacts
+
+  LaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateName: auto-invest-launch-template
+      LaunchTemplateData:
+        InstanceType: !Ref InstanceType
+        ImageId: !Ref AmiId
+        KeyName: !Ref KeyPair
+        IamInstanceProfile:
+          Arn: !GetAtt InstanceProfile.Arn
+        NetworkInterfaces:
+          - DeviceIndex: 0
+            AssociatePublicIpAddress: true
+            SubnetId: !Ref SubnetId
+            Groups:
+              - !Ref SecurityGroup
+            DeleteOnTermination: true
+        InstanceMarketOptions:     
+          MarketType: spot
+          SpotOptions:
+            SpotInstanceType: "one-time"
+        UserData:
+          Fn::Base64: !Sub |
+            #!/bin/bash -x
+            rpm -Uvh https://packages.microsoft.com/config/centos/7/packages-microsoft-prod.rpm
+            yum update -y
+            yum install -y java-1.8.0-openjdk aspnetcore-runtime-6.0 unzip amazon-cloudwatch-agent
+            wget -O clientportal.gw.zip https://download2.interactivebrokers.com/portal/clientportal.gw.zip
+            unzip clientportal.gw.zip -d /clientportal
+            rm /clientportal/root/conf.yaml
+            cat <<'EOF' >> /clientportal/root/conf.yaml
+              ip2loc: "US"
+              proxyRemoteSsl: true
+              proxyRemoteHost: "https://api.ibkr.com"
+              listenPort: 5000
+              listenSsl: true
+              svcEnvironment: "v1"
+              sslCert: "vertx.jks"
+              sslPwd: "mywebapi"
+              authDelay: 3000
+              portalBaseURL: ""
+              serverOptions:
+                  blockedThreadCheckInterval: 1000000
+                  eventLoopPoolSize: 20
+                  workerPoolSize: 20
+                  maxWorkerExecuteTime: 100
+                  internalBlockingPoolSize: 20
+              cors:
+                  origin.allowed: "*"
+                  allowCredentials: false
+              webApps:
+                  - name: "demo"
+                    index: "index.html"
+              ips:
+                allow:
+                  - 192.*
+                  - 131.216.*
+                  - 127.0.0.1
+                  - ${UserIp}
+                deny:
+                  - 212.90.324.10
+            EOF
+            cat <<'EOF' >> /opt/aws/amazon-cloudwatch-agent/amazon-cloudwatch-agent-schema.json
+              {
+                "agent": {
+                  "run_as_user": "root"
+                },
+                "logs": {
+                  "logs_collected": {
+                    "files": {
+                      "collect_list": [
+                        {
+                          "file_path": "/clientportal/logs/gw.*.log",
+                          "log_group_name": "auto-invest-gateway-log",
+                          "log_stream_name": "{instance_id}"
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            EOF
+            cd /clientportal
+            /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -a start | \
+            sh bin/run.sh root/conf.yaml
+
+  GatewayLog:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "${LogGroupPrefix}-gateway-log"
+      RetentionInDays: !Ref LogRetention
+
+  ApplicationLog:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "${LogGroupPrefix}-application"
+      RetentionInDays: !Ref LogRetention
+      
+  ScheduledActionOut: 
+    Type: AWS::AutoScaling::ScheduledAction
+    Properties:
+      AutoScalingGroupName: !Ref AutoScalingGroup
+      MaxSize: 1
+      MinSize: 0
+      Recurrence: "0 7 * * *"
+
+  ScheduledActionIn: 
+    Type: AWS::AutoScaling::ScheduledAction
+    Properties:
+      AutoScalingGroupName: !Ref AutoScalingGroup
+      MaxSize: 0
+      MinSize: 0
+      Recurrence: "0 19 * * *"

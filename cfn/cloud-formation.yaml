@@ -120,6 +120,7 @@ Resources:
                   - logs:CreateLogStream
                   - logs:PutLogEvents
                   - logs:DescribeLogGroups
+                  - logs:DescribeLogStreams
                 Resource: arn:aws:logs:*:*:*
               - Effect: Allow
                 Action:
@@ -129,8 +130,12 @@ Resources:
                 Resource: "*"
               - Effect: Allow
                 Action:
+                  - ssm:GetParameter
+                Resource: arn:aws:ssm:*:*:parameter/AmazonCloudWatch-*
+              - Effect: Allow
+                Action:
                   - S3:Get*
-                Resource: "*"                
+                Resource: !Sub "arn:aws:s3:::${S3ArtifactBucket}${ArtifactPath}/*"               
                 # TODO: finish the pemissions to 
                 # parameter store
                 # S3 artifacts
@@ -162,7 +167,9 @@ Resources:
             rpm -Uvh https://packages.microsoft.com/config/centos/7/packages-microsoft-prod.rpm
             yum update -y
             yum install -y java-1.8.0-openjdk aspnetcore-runtime-6.0 unzip amazon-cloudwatch-agent
-            wget -O clientportal.gw.zip https://download2.interactivebrokers.com/portal/clientportal.gw.zip
+            aws s3 cp s3://${S3ArtifactBucket}${ArtifactPath}/clientportal.gw.zip clientportal.gw.zip --region ${AWS::Region}
+            aws s3 cp s3://${S3ArtifactBucket}${ArtifactPath}/api.ibkr.cer api.ibkr.cer --region ${AWS::Region}
+            cp api.ibkr.cer /etc/ssl/certs/api.ibkr.cer
             unzip clientportal.gw.zip -d /clientportal
             rm /clientportal/root/conf.yaml
             cat <<'EOF' >> /clientportal/root/conf.yaml
@@ -197,7 +204,7 @@ Resources:
                 deny:
                   - 212.90.324.10
             EOF
-            cat <<'EOF' >> /opt/aws/amazon-cloudwatch-agent/amazon-cloudwatch-agent-schema.json
+            cat <<'EOF' >> /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent-schema.json
               {
                 "agent": {
                   "run_as_user": "root"
@@ -218,7 +225,8 @@ Resources:
               }
             EOF
             cd /clientportal
-            /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -a start | \
+            /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -a fetch-config -m ec2 -s -c file:/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent-schema.json
+            systemctl restart amazon-cloudwatch-agent
             sh bin/run.sh root/conf.yaml
 
   GatewayLog:

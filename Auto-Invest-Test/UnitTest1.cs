@@ -1,3 +1,8 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
+using Auto_Invest.Strategy;
 using NUnit.Framework;
 
 namespace Auto_Invest_Test
@@ -10,9 +15,22 @@ namespace Auto_Invest_Test
         }
 
         [Test]
-        public void Test1()
+        public async Task Test1()
         {
-            Assert.Pass();
+            var contractService = new ContractService(
+                new Dictionary<string, ContractState>()
+                {
+                    {"SPGI", new ContractState
+                    {
+                        ConId = "SPGI",
+                        RunState = RunState.TriggerRun,
+                        Offset = 0.01M,
+                        Quantity = 0,
+                        Funding = 100000
+                    }}
+                });
+            var strategy = new TrailingBuySellStrategy(contractService);
         }
     }
+
 }

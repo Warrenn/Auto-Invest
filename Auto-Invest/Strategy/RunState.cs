@@ -2,7 +2,7 @@
 {
     public enum RunState
     {
-        ExecutingOrder,
+        Default,
         TriggerRun,
         SellRun,
         BuyRun

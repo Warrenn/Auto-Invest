@@ -1,6 +1,6 @@
 ﻿namespace Auto_Invest.Strategy
 {
-    public struct ContractState
+    public class ContractState
     {
         public string ConId { get; set; }
         public RunState RunState { get; set; }

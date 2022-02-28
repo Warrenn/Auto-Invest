@@ -73,18 +73,18 @@ namespace Auto_Invest_Test
             var contract = _contractStates[details.ConId];
             if (details.Qty == 0) return;
 
-            var cost = (contract.Quantity * contract.AveragePrice) + details.Price;
+            var cost = (contract.Quantity * contract.AveragePrice) + details.CostOfOrder;
             var newQty = contract.Quantity + details.Qty;
 
             contract.Quantity = newQty;
-            contract.AveragePrice = details.Price / details.Qty;
+            contract.AveragePrice = details.CostOfOrder / details.Qty;
 
             if (newQty != 0 && cost != 0)
             {
                 contract.AveragePrice = cost / newQty;
             }
 
-            contract.Funding -= details.Price;
+            contract.Funding -= details.CostOfOrder;
         });
 
         public async Task SellActionComplete(ActionDetails details) => await Task.Run(() =>
@@ -95,7 +95,7 @@ namespace Auto_Invest_Test
             var cost = (contract.Quantity * contract.AveragePrice) - (contract.AveragePrice * details.Qty);
             var newQty = contract.Quantity - details.Qty;
 
-            contract.AveragePrice = details.Price / details.Qty;
+            contract.AveragePrice = details.CostOfOrder / details.Qty;
             contract.Quantity = newQty;
 
             if (newQty != 0 && cost != 0)
@@ -104,7 +104,7 @@ namespace Auto_Invest_Test
             }
 
 
-            contract.Funding += details.Price;
+            contract.Funding += details.CostOfOrder;
         });
 
         #endregion

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
 using Auto_Invest.Strategy;
@@ -26,7 +27,6 @@ namespace Auto_Invest_Test
                             ConId = "SPGI",
                             RunState = RunState.TriggerRun,
                             Offset = 0.01M,
-                            Quantity = 0,
                             Funding = 100000
                         }
                     }
@@ -34,9 +34,12 @@ namespace Auto_Invest_Test
             var strategy = new TrailingBuySellStrategy(contractService);
 
             var ticks = new List<decimal> { 3, 4, 5, 4, 3, 2, 1, 2, 3, 4, 5 };
+            var counter = 0;
 
             foreach (var tick in ticks)
             {
+                counter++;
+                var isLastTick = ticks.Count == counter;
                 var contract = await contractService.GetContractState("SPGI");
 
                 var position = new TickPosition
@@ -44,9 +47,10 @@ namespace Auto_Invest_Test
                     ConId = "SPGI",
                     Position = tick
                 };
-                if (contract.Quantity == 0 && contract.AveragePrice == 0)
+
+                if (counter == 1)
                 {
-                    var qty = contractService.BuyQtyStrategy(contract);
+                    var qty = contractService.BuyQtyStrategy(contract, tick);
                     await contractService.BuyActionComplete(new ActionDetails
                     {
                         ConId = "SPGI",
@@ -67,9 +71,9 @@ namespace Auto_Invest_Test
                     continue;
                 }
 
-                if (contract.RunState == RunState.BuyRun && tick >= contract.BuyLimit)
+                if (contract.RunState == RunState.BuyRun && 
+                    (tick >= contract.BuyLimit || isLastTick))
                 {
-                    contractService.BuyQtyStrategy(contract);
                     await contractService.BuyActionComplete(new ActionDetails
                     {
                         ConId = "SPGI",
@@ -81,7 +85,8 @@ namespace Auto_Invest_Test
                     continue;
                 }
 
-                if (contract.RunState == RunState.SellRun && tick <= contract.SellLimit)
+                if (contract.RunState == RunState.SellRun &&
+                    (tick <= contract.SellLimit || isLastTick))
                 {
                     await contractService.SellActionComplete(new ActionDetails
                     {
@@ -96,6 +101,8 @@ namespace Auto_Invest_Test
 
                 await strategy.Tick(position);
             }
+
+            var state = await contractService.GetContractState("SPGI");
         }
     }
 

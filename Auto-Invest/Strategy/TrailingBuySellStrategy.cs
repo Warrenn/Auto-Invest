@@ -7,10 +7,10 @@ namespace Auto_Invest.Strategy
         private readonly IContractService _contractService;
 
         private static decimal LowerLimit(decimal baseAmount, decimal offset)
-            => baseAmount * (1 - offset);
+            => baseAmount - offset;
 
         private static decimal UpperLimit(decimal baseAmount, decimal offset)
-            => baseAmount * (1 + offset);
+            => baseAmount + offset;
 
         public TrailingBuySellStrategy(IContractService contractService)
         {

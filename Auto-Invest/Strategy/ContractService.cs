@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using Auto_Invest.Strategy;
 
@@ -8,19 +9,21 @@ namespace Auto_Invest_Test
     public class ContractService : IContractService, IBuySaleLogic
     {
         private readonly IDictionary<string, ContractState> _contractStates;
+        private int _orderId;
 
         public ContractService(IDictionary<string, ContractState> contractStates)
         {
+            _orderId = 0;
             _contractStates = contractStates;
         }
 
         #region Implementation of IStrategy
 
         public Func<ContractState, decimal, decimal> BuyQtyStrategy { get; set; } =
-            (contract, price) => (contract.Funding * 0.2M) / price;
+            (contract, price) => (contract.Funding * 1) / ((price == 0) ? 1 : price);
 
         public Func<ContractState, decimal, decimal> SellQtyStrategy { get; set; } =
-            (contract, price) => contract.Quantity * 0.5M;
+            (contract, price) => contract.Quantity * 1;
 
         public async Task<ContractState> GetContractState(string conId) =>
             await Task.FromResult(_contractStates[conId]);
@@ -47,9 +50,15 @@ namespace Auto_Invest_Test
             await Task.Run(() =>
             {
                 var contract = _contractStates[order.ConId];
+                if (order.PricePerUnit > contract.AveragePrice) return;
+
                 contract.RunState = RunState.BuyRun;
                 contract.BuyLimit = order.PricePerUnit;
                 contract.BuyQty = BuyQtyStrategy(contract, order.PricePerUnit);
+                
+                if (contract.BuyOrderIds.Any()) return;
+                _orderId++;
+                contract.BuyOrderIds.Add(_orderId);
             });
         }
 
@@ -58,9 +67,15 @@ namespace Auto_Invest_Test
             await Task.Run(() =>
             {
                 var contract = _contractStates[order.ConId];
+                if (order.PricePerUnit < contract.AveragePrice) return;
+
                 contract.RunState = RunState.SellRun;
                 contract.SellLimit = order.PricePerUnit;
                 contract.SellQty = SellQtyStrategy(contract, order.PricePerUnit);
+                
+                if (contract.SelOrderIds.Any()) return;
+                _orderId++;
+                contract.SelOrderIds.Add(_orderId);
             });
         }
 
@@ -77,6 +92,9 @@ namespace Auto_Invest_Test
             contract.Quantity += details.Qty;
             contract.Funding -= details.CostOfOrder;
             contract.TotalCost += details.CostOfOrder;
+            contract.BuyOrderIds = new List<int>();
+            contract.BuyQty = 0;
+            contract.BuyLimit = 0;
 
             if (originalQty < 0 && contract.Quantity >= 0)
             {
@@ -102,6 +120,9 @@ namespace Auto_Invest_Test
             contract.Funding += details.CostOfOrder;
             contract.Quantity -= details.Qty;
             contract.TotalCost -= contract.AveragePrice * details.Qty;
+            contract.SelOrderIds = new List<int>();
+            contract.SellQty = 0;
+            contract.SellLimit = 0;
 
             if (contract.Quantity > 0) return;
 

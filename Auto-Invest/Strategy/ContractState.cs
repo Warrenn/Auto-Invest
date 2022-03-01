@@ -1,4 +1,6 @@
-﻿namespace Auto_Invest.Strategy
+﻿using System.Collections.Generic;
+
+namespace Auto_Invest.Strategy
 {
     public class ContractState
     {
@@ -15,5 +17,7 @@
         public decimal BuyLimit { get; set; }
         public decimal SellQty { get; set; }
         public decimal BuyQty { get; set; }
+        public List<int> BuyOrderIds { get; set; } = new List<int>();
+        public List<int> SelOrderIds { get; set; } = new List<int>();
     }
 }

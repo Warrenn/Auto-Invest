@@ -2,7 +2,6 @@
 {
     public enum RunState
     {
-        Default,
         TriggerRun,
         SellRun,
         BuyRun

@@ -28,7 +28,7 @@ namespace Auto_Invest.Strategy
                 await _contractService.PlaceBuyStopOrder(new StopOrder
                 {
                     ConId = tick.ConId,
-                    Price = limit
+                    PricePerUnit = limit
                 });
 
                 return;
@@ -42,7 +42,7 @@ namespace Auto_Invest.Strategy
                 await _contractService.PlaceSellStopOrder(new StopOrder
                 {
                     ConId = tick.ConId,
-                    Price = limit
+                    PricePerUnit = limit
                 });
             }
         }
@@ -55,7 +55,7 @@ namespace Auto_Invest.Strategy
             await _contractService.PlaceSellStopOrder(new StopOrder
             {
                 ConId = tick.ConId,
-                Price = limit
+                PricePerUnit = limit
             });
         }
 
@@ -68,7 +68,7 @@ namespace Auto_Invest.Strategy
             await _contractService.PlaceBuyStopOrder(new StopOrder
             {
                 ConId = tick.ConId,
-                Price = limit
+                PricePerUnit = limit
             });
         }
 
@@ -87,7 +87,7 @@ namespace Auto_Invest.Strategy
                 await _contractService.PlaceSellStopOrder(new StopOrder
                 {
                     ConId = tick.ConId,
-                    Price = limit
+                    PricePerUnit = limit
                 });
                 return;
             }
@@ -99,7 +99,7 @@ namespace Auto_Invest.Strategy
                 await _contractService.PlaceBuyStopOrder(new StopOrder
                 {
                     ConId = tick.ConId,
-                    Price = limit
+                    PricePerUnit = limit
                 });
                 return;
             }

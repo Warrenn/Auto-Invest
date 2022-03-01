@@ -16,11 +16,11 @@ namespace Auto_Invest_Test
 
         #region Implementation of IStrategy
 
-        public Func<ContractState, decimal> BuyQtyStrategy { get; set; } =
-            (contract) => contract.Funding * 0.2M;
+        public Func<ContractState, decimal, decimal> BuyQtyStrategy { get; set; } =
+            (contract, price) => (contract.Funding * 0.2M) / price;
 
-        public Func<ContractState, decimal> SellQtyStrategy { get; set; } =
-            (contract) => contract.Quantity * 0.2M;
+        public Func<ContractState, decimal, decimal> SellQtyStrategy { get; set; } =
+            (contract, price) => contract.Quantity * 0.5M;
 
         public async Task<ContractState> GetContractState(string conId) =>
             await Task.FromResult(_contractStates[conId]);
@@ -48,8 +48,8 @@ namespace Auto_Invest_Test
             {
                 var contract = _contractStates[order.ConId];
                 contract.RunState = RunState.BuyRun;
-                contract.BuyLimit = order.Price;
-                contract.BuyQty = BuyQtyStrategy(contract);
+                contract.BuyLimit = order.PricePerUnit;
+                contract.BuyQty = BuyQtyStrategy(contract, order.PricePerUnit);
             });
         }
 
@@ -59,8 +59,8 @@ namespace Auto_Invest_Test
             {
                 var contract = _contractStates[order.ConId];
                 contract.RunState = RunState.SellRun;
-                contract.SellLimit = order.Price;
-                contract.SellQty = SellQtyStrategy(contract);
+                contract.SellLimit = order.PricePerUnit;
+                contract.SellQty = SellQtyStrategy(contract, order.PricePerUnit);
             });
         }
 
@@ -71,40 +71,49 @@ namespace Auto_Invest_Test
         public async Task BuyActionComplete(ActionDetails details) => await Task.Run(() =>
         {
             var contract = _contractStates[details.ConId];
-            if (details.Qty == 0) return;
+            if (details.Qty <= 0) return;
 
-            var cost = (contract.Quantity * contract.AveragePrice) + details.CostOfOrder;
-            var newQty = contract.Quantity + details.Qty;
+            var originalQty = contract.Quantity;
+            contract.Quantity += details.Qty;
+            contract.Funding -= details.CostOfOrder;
+            contract.TotalCost += details.CostOfOrder;
 
-            contract.Quantity = newQty;
-            contract.AveragePrice = details.CostOfOrder / details.Qty;
-
-            if (newQty != 0 && cost != 0)
+            if (originalQty < 0 && contract.Quantity >= 0)
             {
-                contract.AveragePrice = cost / newQty;
+                contract.TotalCost = contract.Quantity * details.PricePerUnit;
+                contract.AveragePrice = details.PricePerUnit;
+                return;
             }
 
-            contract.Funding -= details.CostOfOrder;
+            if (contract.Quantity < 0)
+            {
+                contract.TotalCost += contract.AveragePrice * details.Qty;
+            }
+
+            contract.AveragePrice = contract.TotalCost / contract.Quantity;
         });
 
         public async Task SellActionComplete(ActionDetails details) => await Task.Run(() =>
         {
             var contract = _contractStates[details.ConId];
-            if (details.Qty == 0) return;
+            if (details.Qty <= 0) return;
 
-            var cost = (contract.Quantity * contract.AveragePrice) - (contract.AveragePrice * details.Qty);
-            var newQty = contract.Quantity - details.Qty;
+            var originalQty = contract.Quantity;
+            contract.Funding += details.CostOfOrder;
+            contract.Quantity -= details.Qty;
+            contract.TotalCost -= contract.AveragePrice * details.Qty;
 
-            contract.AveragePrice = details.CostOfOrder / details.Qty;
-            contract.Quantity = newQty;
+            if (contract.Quantity > 0) return;
 
-            if (newQty != 0 && cost != 0)
+            if (originalQty > 0 || contract.Quantity == 0)
             {
-                contract.AveragePrice = cost / newQty;
+                contract.TotalCost = contract.Quantity * details.PricePerUnit;
+                contract.AveragePrice = details.PricePerUnit;
+                return;
             }
 
-
-            contract.Funding += details.CostOfOrder;
+            contract.TotalCost -= details.CostOfOrder;
+            contract.AveragePrice = contract.TotalCost / contract.Quantity;
         });
 
         #endregion

@@ -5,6 +5,7 @@
         public string ConId { get; set; }
         public RunState RunState { get; set; }
         public decimal AveragePrice { get; set; }
+        public decimal TotalCost { get; set; }
         public decimal Quantity { get; set; }
         public decimal Funding { get; set; }
         public decimal UpperBound { get; set; }

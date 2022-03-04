@@ -103,9 +103,9 @@ namespace Auto_Invest_Test
                 contract.SellLimit = order.PricePerUnit;
                 contract.SellQty = SellQtyStrategy(contract, order.PricePerUnit);
 
-                if (contract.SelOrderIds.Any()) return;
+                if (contract.SellOrderIds.Any()) return;
                 _orderId++;
-                contract.SelOrderIds.Add(_orderId);
+                contract.SellOrderIds.Add(_orderId);
             });
         }
 
@@ -150,7 +150,7 @@ namespace Auto_Invest_Test
             contract.Funding += details.CostOfOrder;
             contract.Quantity -= details.Qty;
             contract.TotalCost -= contract.AveragePrice * details.Qty;
-            contract.SelOrderIds = new List<int>();
+            contract.SellOrderIds = new List<int>();
             contract.SellQty = 0;
             contract.SellLimit = 0;
 

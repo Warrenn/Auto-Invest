@@ -20,11 +20,41 @@ namespace Auto_Invest_Test
         #region Implementation of IStrategy
 
         public Func<ContractState, decimal, decimal> BuyQtyStrategy { get; set; } =
-            (contract, price) => (contract.Funding * 1) / ((price == 0) ? 1 : price);
+            (contract, price) =>
+            {
+                if (price <= 0) return 0;
+                if (contract.AveragePrice > 0 &&
+                    price > contract.AveragePrice) return 0;
+
+                var funding = contract.Funding * contract.FundingRisk;
+                var baseLine = contract.BuyBaseLine == 0 ? 1 : contract.BuyBaseLine;
+
+                if (contract.AveragePrice == 0) return funding / price;
+                var ratio = (contract.AveragePrice - price) / (contract.AveragePrice * baseLine);
+
+                funding *= ratio;
+                var qty = funding / price;
+
+                return qty;
+            };
 
         public Func<ContractState, decimal, decimal> SellQtyStrategy { get; set; } =
-            (contract, price) => contract.Quantity * 1;
+            (contract, price) =>
+            {
+                if (price <= 0) return 0;
+                if (contract.AveragePrice > 0 &&
+                    price < contract.AveragePrice) return 0;
+                if (contract.AveragePrice == 0) return 0;
 
+                var sellMargin = (price - contract.AveragePrice) / contract.AveragePrice;
+                var shortQty = contract.ShortFund / price;
+
+                if (contract.Quantity <= 0) return shortQty * sellMargin;
+                if (sellMargin < 1) return contract.Quantity * sellMargin;
+
+                var qty = contract.Quantity + (sellMargin - 1) * shortQty;
+                return qty;
+            };
         public async Task<ContractState> GetContractState(string conId) =>
             await Task.FromResult(_contractStates[conId]);
 
@@ -55,7 +85,7 @@ namespace Auto_Invest_Test
                 contract.RunState = RunState.BuyRun;
                 contract.BuyLimit = order.PricePerUnit;
                 contract.BuyQty = BuyQtyStrategy(contract, order.PricePerUnit);
-                
+
                 if (contract.BuyOrderIds.Any()) return;
                 _orderId++;
                 contract.BuyOrderIds.Add(_orderId);
@@ -72,7 +102,7 @@ namespace Auto_Invest_Test
                 contract.RunState = RunState.SellRun;
                 contract.SellLimit = order.PricePerUnit;
                 contract.SellQty = SellQtyStrategy(contract, order.PricePerUnit);
-                
+
                 if (contract.SelOrderIds.Any()) return;
                 _orderId++;
                 contract.SelOrderIds.Add(_orderId);

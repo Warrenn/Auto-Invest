@@ -17,6 +17,9 @@ namespace Auto_Invest.Strategy
         public decimal BuyLimit { get; set; }
         public decimal SellQty { get; set; }
         public decimal BuyQty { get; set; }
+        public decimal FundingRisk { get; set; }
+        public decimal BuyBaseLine { get; set; }
+        public decimal ShortFund { get; set; }
         public List<int> BuyOrderIds { get; set; } = new List<int>();
         public List<int> SelOrderIds { get; set; } = new List<int>();
     }

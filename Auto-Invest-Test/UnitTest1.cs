@@ -17,63 +17,44 @@ namespace Auto_Invest_Test
         }
 
         [Test]
-        public async Task Test2()
-        {
-            var hist = await Yahoo.GetHistoricalAsync(
-                "SPGI",
-                new DateTime(),
-                new DateTime(2017, 01, 31));
-
-            foreach (var candle in hist)
-            {
-                Trace.Write(candle.AdjustedClose);
-            }
-        }
-
-        [Test]
         public async Task Test1()
         {
-            var contractService = new ContractService(
-                new Dictionary<string, ContractState>()
-                {
-                    {
-                        "SPGI", new ContractState
-                        {
-                            ConId = "SPGI",
-                            RunState = RunState.TriggerRun,
-                            Offset = 0.01M,
-                            Funding = 100000,
-                            FundingRisk = 1,
-                            ShortFund = 100000,
-                            BuyBaseLine = 0.2M
-                        }
-                    }
-                });
-            var strategy = new TrailingBuySellStrategy(contractService);
+            var Symbol = "NDAQ";
+            var funding = 10000;
+            var contract = new Contract(
+                Symbol,
+                funding,
+                0.01M,
+                0.01M,
+                debtCeiling: 27605,
+                debtRisk: 0.8M,
+                fundingRisk: 0.8M,
+                buyBaseLine: 0.2M,
+                sellMagnification: 100,
+                buyMagnification: 100);
 
-            var counter = 0;
-            var year = 2017;
+            var contractManager = new ContractManager(0);
+            contractManager.RegisterContract(contract);
+
+            var strategy = new TrailingBuySellStrategy(contractManager);
+
             var random = new Random((int)DateTime.UtcNow.Ticks);
-            var checkC = await contractService.GetContractState("SPGI");
-            Trace.WriteLine($"start funding:{checkC.Funding} ");
-            var m = -1;
+            var checkC = await contractManager.GetContractState(Symbol);
+            Trace.WriteLine($"start funding:{checkC.Funding:C} ");
+            var start = new DateTime(2021, 10, 1);
 
             while (true)
             {
-                m++;
-                m %= 12;
-                if (m == 11) year++;
-                if (year == 2021) break;
+                if (start >= new DateTime(2022, 3, 1)) break;
 
-                var start = new DateTime(year, (m + 1), 1);
                 var end = start.AddMonths(1).Subtract(TimeSpan.FromDays(1));
 
-                var hist = await Yahoo.GetHistoricalAsync("SPGI", start, end);
+                var hist = await Yahoo.GetHistoricalAsync(Symbol, start, end);
 
                 foreach (var candle in hist)
                 {
                     await processTick(candle.Open);
-                    if (random.Next(0, 1) == 0)
+                    if (random.Next(0, 2) == 0)
                     {
                         await processTick(candle.Low);
                         await processTick(candle.High);
@@ -83,35 +64,31 @@ namespace Auto_Invest_Test
                         await processTick(candle.High);
                         await processTick(candle.Low);
                     }
+
                     await processTick(candle.Close);
                 }
-            }
-            checkC = await contractService.GetContractState("SPGI");
-            Trace.WriteLine($"end funding:{checkC.Funding} qty:{checkC.Quantity} ave:{checkC.AveragePrice}");
-            Trace.WriteLine($"apy :{((checkC.Funding - 100000) / 100000) * 100} net apy:{(((checkC.Funding + (checkC.Quantity * checkC.AveragePrice)) - 100000) / 100000) * 100}");
 
+                start = start.AddMonths(1);
+            }
+
+            checkC = await contractManager.GetContractState(Symbol);
+            Trace.WriteLine($"end funding:{checkC.Funding:C} qty:{checkC.Quantity:F} ave:{checkC.AveragePrice:F} total assets{checkC.Funding + (checkC.Quantity * checkC.AveragePrice):C}");
+            Trace.WriteLine($"apy :{((checkC.Funding - funding) / funding):P} net apy:{(((checkC.Funding + (checkC.Quantity * checkC.AveragePrice)) - funding) / funding):P}");
+            Trace.WriteLine("DONE");
 
             async Task processTick(decimal tick)
             {
-                counter++;
-                var contract = await contractService.GetContractState("SPGI");
+                var contract = await contractManager.GetContractState(Symbol);
 
                 var position = new TickPosition
                 {
-                    ConId = "SPGI",
+                    ConId = Symbol,
                     Position = tick
                 };
 
-                if (counter == 1)
+                if (contract.AveragePrice == 0)
                 {
-                    var qty = contractService.BuyQtyStrategy(contract, tick);
-                    await contractService.BuyActionComplete(new ActionDetails
-                    {
-                        ConId = "SPGI",
-                        PricePerUnit = tick,
-                        CostOfOrder = tick * qty,
-                        Qty = qty
-                    });
+                    contractManager.InitializeContract(position);
                     await strategy.OrderFilled(position);
                 }
 
@@ -128,11 +105,11 @@ namespace Auto_Invest_Test
                 }
 
                 if (contract.RunState == RunState.BuyRun &&
-                    (tick >= contract.BuyLimit))
+                    (tick >= contract.BuyOrderLimit))
                 {
-                    await contractService.BuyActionComplete(new ActionDetails
+                    await contractManager.BuyActionComplete(new ActionDetails
                     {
-                        ConId = "SPGI",
+                        ConId = Symbol,
                         PricePerUnit = tick,
                         CostOfOrder = contract.BuyQty * tick,
                         Qty = contract.BuyQty
@@ -142,11 +119,11 @@ namespace Auto_Invest_Test
                 }
 
                 if (contract.RunState == RunState.SellRun &&
-                    (tick <= contract.SellLimit))
+                    (tick <= contract.SellOrderLimit))
                 {
-                    await contractService.SellActionComplete(new ActionDetails
+                    await contractManager.SellActionComplete(new ActionDetails
                     {
-                        ConId = "SPGI",
+                        ConId = Symbol,
                         PricePerUnit = tick,
                         CostOfOrder = contract.SellQty * tick,
                         Qty = contract.SellQty

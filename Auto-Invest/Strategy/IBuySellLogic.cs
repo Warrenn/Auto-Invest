@@ -5,10 +5,9 @@ using System.Threading.Tasks;
 
 namespace Auto_Invest.Strategy
 {
-    public interface IBuySaleLogic
+    public interface IBuySellLogic
     {
         Task BuyActionComplete(ActionDetails details);
         Task SellActionComplete(ActionDetails details);
-
     }
 }

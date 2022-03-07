@@ -24,14 +24,11 @@ namespace Auto_Invest_Test
             var contract = new Contract(
                 Symbol,
                 funding,
-                0.01M,
-                0.01M,
-                debtCeiling: 27605,
-                debtRisk: 0.8M,
+                0.0001M,
+                0.0001M,
+                marginRisk: 0.8M,
                 fundingRisk: 0.8M,
-                buyBaseLine: 0.2M,
-                sellMagnification: 100,
-                buyMagnification: 100);
+                buyBaseLine: 0.2M);
 
             var contractManager = new ContractManager(0);
             contractManager.RegisterContract(contract);
@@ -41,13 +38,14 @@ namespace Auto_Invest_Test
             var random = new Random((int)DateTime.UtcNow.Ticks);
             var checkC = await contractManager.GetContractState(Symbol);
             Trace.WriteLine($"start funding:{checkC.Funding:C} ");
-            var start = new DateTime(2021, 10, 1);
+            var start = new DateTime(2017, 1, 1);
+            var end = start;
 
             while (true)
             {
-                if (start >= new DateTime(2022, 3, 1)) break;
+                if (start >= new DateTime(2022, 1, 1)) break;
 
-                var end = start.AddMonths(1).Subtract(TimeSpan.FromDays(1));
+                end = start.AddMonths(1).Subtract(TimeSpan.FromDays(1));
 
                 var hist = await Yahoo.GetHistoricalAsync(Symbol, start, end);
 
@@ -72,8 +70,11 @@ namespace Auto_Invest_Test
             }
 
             checkC = await contractManager.GetContractState(Symbol);
+            var netp = (((checkC.Funding + (checkC.Quantity * checkC.AveragePrice)) - funding) / funding);
+            var years = 5;
+
             Trace.WriteLine($"end funding:{checkC.Funding:C} qty:{checkC.Quantity:F} ave:{checkC.AveragePrice:F} total assets{checkC.Funding + (checkC.Quantity * checkC.AveragePrice):C}");
-            Trace.WriteLine($"apy :{((checkC.Funding - funding) / funding):P} net apy:{(((checkC.Funding + (checkC.Quantity * checkC.AveragePrice)) - funding) / funding):P}");
+            Trace.WriteLine($"total % :{((checkC.Funding - funding) / funding):P} net with assets % :{netp:P} average for {years} years {netp/years:P}");
             Trace.WriteLine("DONE");
 
             async Task processTick(decimal tick)
@@ -110,7 +111,7 @@ namespace Auto_Invest_Test
                     await contractManager.BuyActionComplete(new ActionDetails
                     {
                         ConId = Symbol,
-                        PricePerUnit = tick,
+                        PricePerUnit = contract.BuyOrderLimit,
                         CostOfOrder = contract.BuyQty * tick,
                         Qty = contract.BuyQty
                     });
@@ -124,7 +125,7 @@ namespace Auto_Invest_Test
                     await contractManager.SellActionComplete(new ActionDetails
                     {
                         ConId = Symbol,
-                        PricePerUnit = tick,
+                        PricePerUnit = contract.SellOrderLimit,
                         CostOfOrder = contract.SellQty * tick,
                         Qty = contract.SellQty
                     });

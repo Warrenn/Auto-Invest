@@ -8,15 +8,17 @@ namespace Auto_Invest.Strategy
         private readonly IContractManager _contractManager;
 
         private static decimal LowerLimit(decimal baseAmount, decimal offset)
-            => baseAmount * (1 - offset);
+            => baseAmount - offset;
 
         private static decimal UpperLimit(decimal baseAmount, decimal offset)
-            => baseAmount * (1 + offset);
+            => baseAmount + offset;
 
         public TrailingBuySellStrategy(IContractManager contractManager)
         {
             _contractManager = contractManager;
         }
+        private const decimal StockQty = 10M;
+        private const decimal MarginPercent = 0.5M;
 
         public Func<Contract, decimal, decimal> BuyQtyStrategy { get; set; } =
             (contract, price) =>
@@ -24,29 +26,13 @@ namespace Auto_Invest.Strategy
                 if (price <= 0) return 0;
                 if (contract.AveragePrice > 0 &&
                     price > contract.AveragePrice) return 0;
+                if (contract.AveragePrice == 0) return 0;
 
-                var funding =
-                        (contract.Funding + contract.Quantity * contract.AveragePrice) * contract.FundingRisk;
+                //if (contract.Funding > 0) return contract.Funding / price;
 
-                if (funding <= 0) return 0;
-
-                var magnification = contract.BuyMagnification == 0 ? 1 : contract.BuyMagnification;
-                var baseLine = contract.BuyBaseLine == 0 ? 1 : contract.BuyBaseLine;
-                var ratio = contract.AveragePrice == 0
-                    ? 1
-                    : (contract.AveragePrice - price) / (contract.AveragePrice * baseLine);
-
-                funding *= ratio;
-                var qty = (funding / price) * magnification;
-
-                var netCost = contract.Funding - qty * price;
-                if (netCost > (contract.DebtCeiling * -1)) return qty;
-
-                funding = (contract.Funding + contract.DebtCeiling) * contract.FundingRisk;
-                if (funding < 0) return 0;
-                qty = funding / price;
-
-                return qty;
+                var margin = MarginPercent * price * (Math.Abs(contract.Quantity) + StockQty);
+                var equity = contract.Quantity * price + contract.Funding;
+                return (margin > equity) ? 0 :StockQty;
             };
 
         public Func<Contract, decimal, decimal> SellQtyStrategy { get; set; } =
@@ -57,27 +43,14 @@ namespace Auto_Invest.Strategy
                     price < contract.AveragePrice) return 0;
                 if (contract.AveragePrice == 0) return 0;
 
-                var sellMargin = (price - contract.AveragePrice) / contract.AveragePrice;
+                //if (contract.Quantity > 0 ) return contract.Quantity;
 
-                if (sellMargin <= 1 && contract.Quantity > 0) return contract.Quantity * sellMargin;
-
-                var qty = 0M;
-                if (sellMargin > 1 && contract.Quantity > 0)
-                {
-                    qty = contract.Quantity;
-                    sellMargin -= 1;
-                }
-
-                sellMargin = Math.Min(1, sellMargin);
-
-                var availableDebt = contract.DebtCeiling * contract.DebtRisk;
-
-                if (contract.Quantity < 0) availableDebt += contract.Quantity * contract.AveragePrice;
-                if (contract.Funding < 0) availableDebt += contract.Funding;
-                if (availableDebt < 0) return 0;
-
-                qty += availableDebt * sellMargin / price;
-                return qty;
+                //var margin = MarginPercent * price * Math.Abs(contract.Quantity);
+                //var equity = contract.Quantity * price + contract.Funding;
+                //return margin > equity ? 0 : (equity / MarginPercent) / price;
+                var margin = MarginPercent * price * (Math.Abs(contract.Quantity) + StockQty);
+                var equity = contract.Quantity * price + contract.Funding;
+                return (margin > equity) ? 0 : StockQty;
             };
 
         public async Task Tick(TickPosition tick)
@@ -86,11 +59,11 @@ namespace Auto_Invest.Strategy
 
             if (contractState.RunState == RunState.BuyRun)
             {
-                var limit = UpperLimit(tick.Position, contractState.Offset);
+                var limit = UpperLimit(tick.Position, contractState.TrailingOffset);
                 if (limit > contractState.BuyOrderLimit) return;
 
                 var qty = BuyQtyStrategy(contractState, limit);
-                await _contractManager.PlaceBuyStopOrder(new StopOrder
+                await _contractManager.PlaceBuyStopOrder(new MarketOrder
                 {
                     Quantity = qty,
                     ConId = tick.ConId,
@@ -102,11 +75,11 @@ namespace Auto_Invest.Strategy
 
             if (contractState.RunState == RunState.SellRun)
             {
-                var limit = LowerLimit(tick.Position, contractState.Offset);
+                var limit = LowerLimit(tick.Position, contractState.TrailingOffset);
                 if (limit < contractState.SellOrderLimit) return;
 
                 var qty = SellQtyStrategy(contractState, limit);
-                await _contractManager.PlaceSellStopOrder(new StopOrder
+                await _contractManager.PlaceSellStopOrder(new MarketOrder
                 {
                     ConId = tick.ConId,
                     Quantity = qty,
@@ -118,11 +91,11 @@ namespace Auto_Invest.Strategy
         public async Task UpperTriggerHit(TickPosition tick)
         {
             var contractState = await _contractManager.GetContractState(tick.ConId);
-            var limit = LowerLimit(tick.Position, contractState.Offset);
+            var limit = LowerLimit(tick.Position, contractState.TrailingOffset);
             if (limit < contractState.AveragePrice) limit = contractState.AveragePrice;
 
             var qty = SellQtyStrategy(contractState, limit);
-            await _contractManager.PlaceSellStopOrder(new StopOrder
+            await _contractManager.PlaceSellStopOrder(new MarketOrder
             {
                 Quantity = qty,
                 ConId = tick.ConId,
@@ -134,12 +107,12 @@ namespace Auto_Invest.Strategy
         public async Task LowerTriggerHit(TickPosition tick)
         {
             var contractState = await _contractManager.GetContractState(tick.ConId);
-            var limit = UpperLimit(tick.Position, contractState.Offset);
+            var limit = UpperLimit(tick.Position, contractState.TrailingOffset);
             if (limit > contractState.AveragePrice) limit = contractState.AveragePrice;
 
             var qty = BuyQtyStrategy(contractState, limit);
 
-            await _contractManager.PlaceBuyStopOrder(new StopOrder
+            await _contractManager.PlaceBuyStopOrder(new MarketOrder
             {
                 Quantity = qty,
                 ConId = tick.ConId,
@@ -152,16 +125,16 @@ namespace Auto_Invest.Strategy
             var contractState = await _contractManager.GetContractState(tick.ConId);
             var average = await _contractManager.GetContractsAverageValue(tick.ConId);
 
-            var upperBound = UpperLimit(average, contractState.TriggerMargin);
-            var lowerBound = LowerLimit(average, contractState.TriggerMargin);
+            var upperBound = UpperLimit(average, contractState.TriggerRange);
+            var lowerBound = LowerLimit(average, contractState.TriggerRange);
 
             if (tick.Position > upperBound)
             {
                 // Place a sell stop order
-                var limit = LowerLimit(tick.Position, contractState.Offset);
+                var limit = LowerLimit(tick.Position, contractState.TrailingOffset);
                 var qty = BuyQtyStrategy(contractState, limit);
 
-                await _contractManager.PlaceSellStopOrder(new StopOrder
+                await _contractManager.PlaceSellStopOrder(new MarketOrder
                 {
                     ConId = tick.ConId,
                     Quantity = qty,
@@ -173,10 +146,10 @@ namespace Auto_Invest.Strategy
             if (tick.Position < lowerBound)
             {
                 // Place a buy stop order
-                var limit = UpperLimit(tick.Position, contractState.Offset);
+                var limit = UpperLimit(tick.Position, contractState.TrailingOffset);
                 var qty = BuyQtyStrategy(contractState, limit);
 
-                await _contractManager.PlaceBuyStopOrder(new StopOrder
+                await _contractManager.PlaceBuyStopOrder(new MarketOrder
                 {
                     ConId = tick.ConId,
                     Quantity = qty,

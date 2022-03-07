@@ -48,7 +48,7 @@ namespace Auto_Invest.Strategy
             return await Task.FromResult(contract.AveragePrice);
         }
 
-        public async Task PlaceBuyStopOrder(StopOrder order)
+        public async Task PlaceBuyStopOrder(MarketOrder order)
         {
             await Task.Run(() =>
             {
@@ -70,7 +70,7 @@ namespace Auto_Invest.Strategy
             });
         }
 
-        public async Task PlaceSellStopOrder(StopOrder order)
+        public async Task PlaceSellStopOrder(MarketOrder order)
         {
             await Task.Run(() =>
             {
@@ -123,7 +123,7 @@ namespace Auto_Invest.Strategy
             if (originalQty < 0 && newQuantity >= 0)
             {
                 editor.SetTotalCost(newQuantity * details.PricePerUnit);
-                editor.SetAveragePrice(Math.Abs(details.PricePerUnit));
+                editor.SetAveragePrice(details.PricePerUnit);
                 return;
             }
 
@@ -159,7 +159,7 @@ namespace Auto_Invest.Strategy
             if (originalQty > 0 || newQuantity == 0)
             {
                 editor.SetTotalCost(newQuantity * details.PricePerUnit);
-                editor.SetAveragePrice(Math.Abs(details.PricePerUnit));
+                editor.SetAveragePrice(details.PricePerUnit);
                 return;
             }
 

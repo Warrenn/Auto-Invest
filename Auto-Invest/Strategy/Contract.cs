@@ -7,46 +7,34 @@ namespace Auto_Invest.Strategy
         public Contract(
             string conId,
             decimal funding,
-            decimal offset,
-            decimal triggerMargin,
+            decimal trailingOffset,
+            decimal triggerRange,
             decimal fundingRisk = 1,
             decimal buyBaseLine = 1,
-            decimal buyMagnification = 1,
-            decimal sellMagnification = 1,
-            decimal debtCeiling = -1,
-            decimal debtRisk = -1)
+            decimal sellBaseLine = 1,
+            decimal marginRisk = -1)
         {
             if (string.IsNullOrWhiteSpace(conId)) throw new ArgumentNullException(nameof(conId));
             if (funding == 0) throw new ArgumentException($"{nameof(funding)} cannot be 0", nameof(funding));
-            if (sellMagnification == 0) throw new ArgumentException($"{nameof(sellMagnification)} cannot be 0", nameof(sellMagnification));
-            if (buyMagnification == 0) throw new ArgumentException($"{nameof(buyMagnification)} cannot be 0", nameof(buyMagnification));
-            if (triggerMargin == 0) throw new ArgumentException($"{nameof(triggerMargin)} cannot be 0", nameof(triggerMargin));
-            if (offset == 0) throw new ArgumentException($"{nameof(offset)} cannot be 0", nameof(offset));
+            if (triggerRange == 0) throw new ArgumentException($"{nameof(triggerRange)} cannot be 0", nameof(triggerRange));
+            if (trailingOffset == 0) throw new ArgumentException($"{nameof(trailingOffset)} cannot be 0", nameof(trailingOffset));
 
             ConId = conId.ToUpper();
             Funding = Math.Abs(funding);
-            Offset = Math.Abs(offset % 1);
+            TrailingOffset = Math.Abs(trailingOffset % 1);
             FundingRisk = Math.Abs(fundingRisk % 1);
             BuyBaseLine = Math.Abs(buyBaseLine % 1);
-            BuyMagnification = Math.Abs(buyMagnification);
-            SellMagnification = Math.Abs(sellMagnification);
-            TriggerMargin = Math.Abs(triggerMargin % 1);
-            DebtRisk = Math.Abs(debtRisk % 1);
-            DebtCeiling = Math.Abs(debtCeiling);
+            TriggerRange = Math.Abs(triggerRange % 1);
+            MarginRisk = Math.Abs(marginRisk % 1);
 
-            if (FundingRisk == 0)
-                FundingRisk = 1;
-            if (BuyBaseLine == 0)
-                BuyBaseLine = 1;
-            if (TriggerMargin == 0)
-                TriggerMargin = 1;
-            if (DebtRisk == 0)
-                DebtRisk = 1;
-            if (debtCeiling < 0)
-                DebtCeiling = Funding;
-            if (debtRisk < 0)
-                DebtRisk = 1;
+            if (FundingRisk == 0) FundingRisk = 1;
+            if (BuyBaseLine == 0) BuyBaseLine = 1;
+            if (TriggerRange == 0) TriggerRange = 1;
+            if (MarginRisk == 0) MarginRisk = 1;
+            if (BuyMagnification == 0) BuyMagnification = 1;
+            if (SellMagnification == 0) SellMagnification = 1;
         }
+
         /// <summary>
         /// This is the stock symbol it is refereed to as contract ID in IBKR
         /// </summary>
@@ -91,7 +79,7 @@ namespace Auto_Invest.Strategy
         /// The offset expressed as a fraction of market price. Used to determine the trailing stop
         /// buy price for a buy run or trailing stop sell price for a sell run
         /// </summary>
-        public decimal Offset { get; }
+        public decimal TrailingOffset { get; }
 
         /// <summary>
         /// The price limit of the market that will trigger a sell order. Determined by using the offset against the market price.
@@ -146,17 +134,12 @@ namespace Auto_Invest.Strategy
         /// <summary>
         /// The absolute hard limit of currency exposure when determining the quantity of a sell or buy order
         /// </summary>
-        public decimal DebtCeiling { get; }
-
-        /// <summary>
-        /// The ratio of acceptable debt available to DebtCeiling when shorting stocks
-        /// </summary>
-        public decimal DebtRisk { get; }
+        public decimal MarginRisk { get; }
 
         /// <summary>
         /// The fraction of the average value that determines the upper bound and lower bound of the trigger limits.
         /// </summary>
-        public decimal TriggerMargin { get; }
+        public decimal TriggerRange { get; }
 
         public void RegisterEditor(IRegisterContractEditor register) => register.RegisterEditor(this, new ContractEditor(this));
 

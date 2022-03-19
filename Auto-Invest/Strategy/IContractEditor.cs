@@ -11,8 +11,6 @@
         void SetLowerBound(decimal newValue);
         void SetSellLimit(decimal newValue);
         void SetBuyLimit(decimal newValue);
-        void SetSellQty(decimal newValue);
-        void SetBuyQty(decimal newValue);
         void SetBuyOrderId(int newValue);
         void SetSellOrderId(int newValue);
     }

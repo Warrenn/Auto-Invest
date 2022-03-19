@@ -4,6 +4,8 @@
     {
         TriggerRun,
         SellRun,
-        BuyRun
+        BuyRun,
+        BuyCapped,
+        SellCapped
     }
 }

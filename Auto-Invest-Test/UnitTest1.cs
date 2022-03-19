@@ -17,6 +17,17 @@ namespace Auto_Invest_Test
         }
 
         [Test]
+        public void GetTheCorrectMaxSellingPrice()
+        {
+            var offset = 0M;
+            var p =
+            TrailingBuySellStrategy.SafetyPrice(75000, -1000, Contract.MaintenanceMargin, offset);
+
+            var mc = TrailingBuySellStrategy.MarginCallPrice(50M, Contract.InitialMargin, Contract.MaintenanceMargin);
+            Assert.AreEqual(mc + offset, p);
+        }
+
+        [Test]
         public async Task Test1()
         {
             var Symbol = "NDAQ";
@@ -24,11 +35,9 @@ namespace Auto_Invest_Test
             var contract = new Contract(
                 Symbol,
                 funding,
+                0.1M,
                 0.0001M,
-                0.0001M,
-                marginRisk: 0.8M,
-                fundingRisk: 0.8M,
-                buyBaseLine: 0.2M);
+                marginRisk: 10.0M);
 
             var contractManager = new ContractManager(0);
             contractManager.RegisterContract(contract);
@@ -74,7 +83,7 @@ namespace Auto_Invest_Test
             var years = 5;
 
             Trace.WriteLine($"end funding:{checkC.Funding:C} qty:{checkC.Quantity:F} ave:{checkC.AveragePrice:F} total assets{checkC.Funding + (checkC.Quantity * checkC.AveragePrice):C}");
-            Trace.WriteLine($"total % :{((checkC.Funding - funding) / funding):P} net with assets % :{netp:P} average for {years} years {netp/years:P}");
+            Trace.WriteLine($"total % :{((checkC.Funding - funding) / funding):P} net with assets % :{netp:P} average for {years} years {netp / years:P}");
             Trace.WriteLine("DONE");
 
             async Task processTick(decimal tick)
@@ -112,8 +121,8 @@ namespace Auto_Invest_Test
                     {
                         ConId = Symbol,
                         PricePerUnit = contract.BuyOrderLimit,
-                        CostOfOrder = contract.BuyQty * tick,
-                        Qty = contract.BuyQty
+                        CostOfOrder = contract.TradeQty * tick,
+                        Qty = contract.TradeQty
                     });
                     await strategy.OrderFilled(position);
                     return;
@@ -126,8 +135,8 @@ namespace Auto_Invest_Test
                     {
                         ConId = Symbol,
                         PricePerUnit = contract.SellOrderLimit,
-                        CostOfOrder = contract.SellQty * tick,
-                        Qty = contract.SellQty
+                        CostOfOrder = contract.TradeQty * tick,
+                        Qty = contract.TradeQty
                     });
                     await strategy.OrderFilled(position);
                     return;

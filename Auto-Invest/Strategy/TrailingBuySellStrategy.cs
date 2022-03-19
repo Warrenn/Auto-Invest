@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 
 namespace Auto_Invest.Strategy
@@ -17,40 +18,68 @@ namespace Auto_Invest.Strategy
         {
             _contractManager = contractManager;
         }
-        private const decimal StockQty = 10M;
-        private const decimal MarginPercent = 0.5M;
+
+        public static IEnumerable<decimal> SafetyThresholds(
+            decimal funds,
+            decimal quantity,
+            decimal marginPct,
+            decimal safetyOffset,
+            int safetyLayers)
+        {
+            var quantityChange = quantity / safetyLayers;
+            for (var i = 0; i < safetyLayers; i++)
+            {
+                var price = SafetyPrice(funds, quantity, marginPct, safetyOffset);
+                yield return price;
+                quantity -= quantityChange;
+                funds += quantityChange * price;
+            }
+        }
+
+        public static decimal SafetyPrice(decimal funds, decimal quantity, decimal marginPct, decimal safetyOffset) =>
+            funds / (Math.Abs(quantity) * marginPct - quantity) + safetyOffset * Math.Sign(quantity);
+
+        public static decimal PurchasePower(decimal funds, decimal quantity, decimal price, decimal margin) =>
+            (quantity * price + funds) / margin - Math.Abs(quantity) * price;
+
+        public static decimal MarginCallPrice(decimal price, decimal initialMargin, decimal maintenanceMargin) =>
+            price * (1 - initialMargin) / (1 - maintenanceMargin);
 
         public Func<Contract, decimal, decimal> BuyQtyStrategy { get; set; } =
             (contract, price) =>
             {
                 if (price <= 0) return 0;
+                // never buy above the average price
                 if (contract.AveragePrice > 0 &&
                     price > contract.AveragePrice) return 0;
                 if (contract.AveragePrice == 0) return 0;
 
-                //if (contract.Funding > 0) return contract.Funding / price;
+                var orderCost = price * contract.TradeQty;
 
-                var margin = MarginPercent * price * (Math.Abs(contract.Quantity) + StockQty);
-                var equity = contract.Quantity * price + contract.Funding;
-                return (margin > equity) ? 0 :StockQty;
+                // if we have the funds and don't need to borrow do the trade
+                if (contract.Funding > orderCost) return contract.TradeQty;
+
+                var purchasePower = PurchasePower(contract.Funding, contract.Quantity, price, Contract.InitialMargin);
+                //if we have the purchase power do the trade
+                return purchasePower > orderCost ? contract.TradeQty : 0;
             };
 
         public Func<Contract, decimal, decimal> SellQtyStrategy { get; set; } =
             (contract, price) =>
             {
                 if (price <= 0) return 0;
+                // never sell below the average price that was bought
                 if (contract.AveragePrice > 0 &&
                     price < contract.AveragePrice) return 0;
                 if (contract.AveragePrice == 0) return 0;
 
-                //if (contract.Quantity > 0 ) return contract.Quantity;
+                // if we have the stocks and don't need to borrow do the trade
+                if (contract.Quantity >= contract.TradeQty) return contract.TradeQty;
 
-                //var margin = MarginPercent * price * Math.Abs(contract.Quantity);
-                //var equity = contract.Quantity * price + contract.Funding;
-                //return margin > equity ? 0 : (equity / MarginPercent) / price;
-                var margin = MarginPercent * price * (Math.Abs(contract.Quantity) + StockQty);
-                var equity = contract.Quantity * price + contract.Funding;
-                return (margin > equity) ? 0 : StockQty;
+                var orderCost = price * contract.TradeQty;
+                var purchasePower = PurchasePower(contract.Funding, contract.Quantity, price, Contract.InitialMargin);
+                //if we have the purchase power do the trade
+                return purchasePower > orderCost ? contract.TradeQty : 0;
             };
 
         public async Task Tick(TickPosition tick)
@@ -125,8 +154,8 @@ namespace Auto_Invest.Strategy
             var contractState = await _contractManager.GetContractState(tick.ConId);
             var average = await _contractManager.GetContractsAverageValue(tick.ConId);
 
-            var upperBound = UpperLimit(average, contractState.TriggerRange);
-            var lowerBound = LowerLimit(average, contractState.TriggerRange);
+            var upperBound = UpperLimit(average, contractState.TrailingOffset);
+            var lowerBound = LowerLimit(average, contractState.TrailingOffset);
 
             if (tick.Position > upperBound)
             {

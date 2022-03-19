@@ -62,7 +62,6 @@ namespace Auto_Invest.Strategy
 
                 editor.SetRunState(RunState.BuyRun);
                 editor.SetBuyLimit(order.PricePerUnit);
-                editor.SetBuyQty(order.Quantity);
 
                 if (contract.BuyOrderId > 0) return;
                 _orderId++;
@@ -84,7 +83,6 @@ namespace Auto_Invest.Strategy
 
                 editor.SetRunState(RunState.SellRun);
                 editor.SetSellLimit(order.PricePerUnit);
-                editor.SetSellQty(order.Quantity);
 
                 if (contract.SellOrderId > 0) return;
                 _orderId++;
@@ -117,7 +115,6 @@ namespace Auto_Invest.Strategy
             editor.SetFunding(contract.Funding - details.CostOfOrder);
             editor.SetTotalCost(newTotalCost);
             editor.SetBuyOrderId(-1);
-            editor.SetBuyQty(0);
             editor.SetBuyLimit(0);
 
             if (originalQty < 0 && newQuantity >= 0)
@@ -151,7 +148,6 @@ namespace Auto_Invest.Strategy
             editor.SetQuantity(newQuantity);
             editor.SetTotalCost(newTotalCost);
             editor.SetSellOrderId(-1);
-            editor.SetSellQty(0);
             editor.SetSellLimit(0);
 
             if (newQuantity > 0) return;

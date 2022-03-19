@@ -4,35 +4,33 @@ namespace Auto_Invest.Strategy
 {
     public class Contract
     {
+        public const decimal InitialMargin = 0.5M;
+        public const decimal MaintenanceMargin = 0.3M;
+
         public Contract(
             string conId,
             decimal funding,
+            decimal tradeQuantity,
             decimal trailingOffset,
-            decimal triggerRange,
-            decimal fundingRisk = 1,
-            decimal buyBaseLine = 1,
-            decimal sellBaseLine = 1,
-            decimal marginRisk = -1)
+            int safetyLayers = 10,
+            decimal initialQuantity = 0,
+            decimal marginRisk = 0)
         {
             if (string.IsNullOrWhiteSpace(conId)) throw new ArgumentNullException(nameof(conId));
-            if (funding == 0) throw new ArgumentException($"{nameof(funding)} cannot be 0", nameof(funding));
-            if (triggerRange == 0) throw new ArgumentException($"{nameof(triggerRange)} cannot be 0", nameof(triggerRange));
+            if (funding == 0 && initialQuantity == 0) throw new ArgumentException($"{nameof(funding)} and {nameof(initialQuantity)} cannot both be 0", nameof(funding));
             if (trailingOffset == 0) throw new ArgumentException($"{nameof(trailingOffset)} cannot be 0", nameof(trailingOffset));
 
             ConId = conId.ToUpper();
-            Funding = Math.Abs(funding);
-            TrailingOffset = Math.Abs(trailingOffset % 1);
-            FundingRisk = Math.Abs(fundingRisk % 1);
-            BuyBaseLine = Math.Abs(buyBaseLine % 1);
-            TriggerRange = Math.Abs(triggerRange % 1);
+            Funding = funding;
+            SafetyLayers = safetyLayers;
+            Quantity = initialQuantity;
+            TrailingOffset = trailingOffset;
             MarginRisk = Math.Abs(marginRisk % 1);
+            TradeQty = Math.Abs(tradeQuantity);
 
-            if (FundingRisk == 0) FundingRisk = 1;
-            if (BuyBaseLine == 0) BuyBaseLine = 1;
-            if (TriggerRange == 0) TriggerRange = 1;
-            if (MarginRisk == 0) MarginRisk = 1;
-            if (BuyMagnification == 0) BuyMagnification = 1;
-            if (SellMagnification == 0) SellMagnification = 1;
+            if (TrailingOffset <= 0) TrailingOffset = 1;
+            if (MarginRisk <= 0) MarginRisk = TrailingOffset;
+            if (SafetyLayers <= 0) SafetyLayers = 1;
         }
 
         /// <summary>
@@ -65,6 +63,8 @@ namespace Auto_Invest.Strategy
         /// </summary>
         public decimal Funding { get; private set; }
 
+        public int SafetyLayers { get; }
+
         /// <summary>
         /// The upper limit price for the trigger that when hit will put the contract into a sell run.
         /// </summary>
@@ -92,24 +92,9 @@ namespace Auto_Invest.Strategy
         public decimal BuyOrderLimit { get; private set; }
 
         /// <summary>
-        /// The amount of stock to sell when the sell order is triggered.
+        /// The amount of stock to sell or buy when the sell or buy order is triggered.
         /// </summary>
-        public decimal SellQty { get; private set; }
-
-        /// <summary>
-        /// The amount of stock to buy when the sell order is triggered
-        /// </summary>
-        public decimal BuyQty { get; private set; }
-
-        /// <summary>
-        /// The fraction of how much of the funding to risk when making a buy order
-        /// </summary>
-        public decimal FundingRisk { get; }
-
-        /// <summary>
-        /// The fraction of the average price considered as 100% under value when making a buy order
-        /// </summary>
-        public decimal BuyBaseLine { get; }
+        public decimal TradeQty { get; }
 
         /// <summary>
         /// The tracking numbers of the orders placed for buy orders
@@ -122,24 +107,10 @@ namespace Auto_Invest.Strategy
         public int SellOrderId { get; private set; }
 
         /// <summary>
-        /// A multiplier to exaggerate the quantity to buy when placing a buy order 
-        /// </summary>
-        public decimal BuyMagnification { get; }
-
-        /// <summary>
-        /// A multiplier to exaggerate the quantity to sell when placing a sell order
-        /// </summary>
-        public decimal SellMagnification { get; }
-
-        /// <summary>
         /// The absolute hard limit of currency exposure when determining the quantity of a sell or buy order
         /// </summary>
         public decimal MarginRisk { get; }
 
-        /// <summary>
-        /// The fraction of the average value that determines the upper bound and lower bound of the trigger limits.
-        /// </summary>
-        public decimal TriggerRange { get; }
 
         public void RegisterEditor(IRegisterContractEditor register) => register.RegisterEditor(this, new ContractEditor(this));
 
@@ -161,8 +132,6 @@ namespace Auto_Invest.Strategy
             public void SetLowerBound(decimal newValue) => _state.LowerBound = newValue;
             public void SetSellLimit(decimal newValue) => _state.SellOrderLimit = newValue;
             public void SetBuyLimit(decimal newValue) => _state.BuyOrderLimit = newValue;
-            public void SetSellQty(decimal newValue) => _state.SellQty = newValue;
-            public void SetBuyQty(decimal newValue) => _state.BuyQty = newValue;
             public void SetBuyOrderId(int newValue) => _state.BuyOrderId = newValue;
             public void SetSellOrderId(int newValue) => _state.SellOrderId = newValue;
         }

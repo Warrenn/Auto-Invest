@@ -12,7 +12,7 @@ namespace Auto_Invest.Strategy
             decimal funding,
             decimal tradeQuantity,
             decimal trailingOffset,
-            int safetyLayers = 10,
+            uint safetyLayers = 10,
             decimal initialQuantity = 0,
             decimal marginRisk = 0)
         {
@@ -25,12 +25,12 @@ namespace Auto_Invest.Strategy
             SafetyLayers = safetyLayers;
             Quantity = initialQuantity;
             TrailingOffset = trailingOffset;
-            MarginRisk = Math.Abs(marginRisk % 1);
+            MarginRisk = Math.Abs(marginRisk);
             TradeQty = Math.Abs(tradeQuantity);
 
             if (TrailingOffset <= 0) TrailingOffset = 1;
             if (MarginRisk <= 0) MarginRisk = TrailingOffset;
-            if (SafetyLayers <= 0) SafetyLayers = 1;
+            if (SafetyLayers == 0) SafetyLayers = 1;
         }
 
         /// <summary>
@@ -63,7 +63,7 @@ namespace Auto_Invest.Strategy
         /// </summary>
         public decimal Funding { get; private set; }
 
-        public int SafetyLayers { get; }
+        public uint SafetyLayers { get; }
 
         /// <summary>
         /// The upper limit price for the trigger that when hit will put the contract into a sell run.

@@ -4,7 +4,7 @@ using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using Auto_Invest.Strategy;
+using Auto_Invest_Strategy;
 using NUnit.Framework;
 using YahooFinanceApi;
 
@@ -43,7 +43,7 @@ namespace Auto_Invest_Test
                 0.0001M,
                 marginRisk: 10.0M);
 
-            var contractManager = new ContractManager(0);
+            var contractManager = new ContractManager(null);
             contractManager.RegisterContract(contract);
 
             var strategy = new TrailingBuySellStrategy(contractManager);
@@ -103,20 +103,8 @@ namespace Auto_Invest_Test
                 if (contract.AveragePrice == 0)
                 {
                     contractManager.InitializeContract(position);
-                    await strategy.OrderFilled(position);
                 }
 
-                if (contract.RunState == RunState.TriggerRun && tick >= contract.UpperBound)
-                {
-                    await strategy.UpperTriggerHit(position);
-                    return;
-                }
-
-                if (contract.RunState == RunState.TriggerRun && tick <= contract.LowerBound)
-                {
-                    await strategy.LowerTriggerHit(position);
-                    return;
-                }
 
                 if (contract.RunState == RunState.BuyRun &&
                     (tick >= contract.BuyOrderLimit))
@@ -128,7 +116,6 @@ namespace Auto_Invest_Test
                         CostOfOrder = contract.TradeQty * tick,
                         Qty = contract.TradeQty
                     });
-                    await strategy.OrderFilled(position);
                     return;
                 }
 
@@ -142,7 +129,6 @@ namespace Auto_Invest_Test
                         CostOfOrder = contract.TradeQty * tick,
                         Qty = contract.TradeQty
                     });
-                    await strategy.OrderFilled(position);
                     return;
                 }
 

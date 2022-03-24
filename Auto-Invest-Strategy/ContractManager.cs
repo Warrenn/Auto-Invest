@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 
-namespace Auto_Invest.Strategy
+namespace Auto_Invest_Strategy
 {
     public class ContractManager :
         IContractManager,
@@ -230,6 +230,13 @@ namespace Auto_Invest.Strategy
                 await _contractClient.CancelOrder(detail.OrderId);
             }
 
+            if (contract.MaxSellOrderId > 0)
+            {
+                await _contractClient.CancelOrder(contract.MaxSellOrderId);
+                editor.SetMaxOrderId(-1);
+            }
+
+            editor.SetMaxSellPrice(-1);
             editor.ResetEmergencyOrders();
         }
 

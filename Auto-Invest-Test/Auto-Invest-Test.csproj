@@ -16,6 +16,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\Auto-Invest-Strategy\Auto-Invest-Strategy.csproj" />
     <ProjectReference Include="..\Auto-Invest\Auto-Invest.csproj" />
   </ItemGroup>
 

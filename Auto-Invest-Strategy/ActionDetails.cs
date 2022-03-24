@@ -1,6 +1,6 @@
-namespace Auto_Invest.Strategy
+﻿namespace Auto_Invest_Strategy
 {
-    public class CompletedOrder
+    public class ActionDetails
     {
         public int OrderId { get; set; }
         public string Symbol { get; set; }
@@ -8,6 +8,5 @@ namespace Auto_Invest.Strategy
         public decimal PricePerUnit { get; set; }
         public decimal CostOfOrder { get; set; }
         public decimal Commission { get; set; }
-        public ActionSide Side { get; set; }
     }
 }

@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 
-namespace Auto_Invest.Strategy
+namespace Auto_Invest_Strategy
 {
     public class Contract
     {

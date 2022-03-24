@@ -4,7 +4,7 @@ using System.Threading.Tasks;
 
 namespace Auto_Invest.Strategy
 {
-    public class TrailingBuySellStrategy
+    public class TrailingBuySellStrategy : IOrderFilledProcess
     {
         private readonly IContractManager _contractManager;
 
@@ -17,6 +17,7 @@ namespace Auto_Invest.Strategy
         public TrailingBuySellStrategy(IContractManager contractManager)
         {
             _contractManager = contractManager;
+            contractManager.RegisterForOrderFilled(this);
         }
 
         public static IEnumerable<decimal> SafetyThresholds(
@@ -126,7 +127,7 @@ namespace Auto_Invest.Strategy
                 var qty = BuyQtyStrategy(contractState, limit);
                 if (qty == 0) return;
 
-                await _contractManager.UpdateTrailingBuyOrder(new MarketOrder
+                await _contractManager.PlaceTrailingBuyOrder(new MarketOrder
                 {
                     Quantity = qty,
                     Symbol = tick.Symbol,
@@ -144,11 +145,12 @@ namespace Auto_Invest.Strategy
                 var qty = SellQtyStrategy(contractState, limit);
                 if (qty == 0) return;
 
-                await _contractManager.UpdateTrailingSellOrder(new MarketOrder
+                await _contractManager.PlaceTrailingSellOrder(new SellMarketOrder
                 {
                     Symbol = tick.Symbol,
                     Quantity = qty,
-                    PricePerUnit = limit
+                    PricePerUnit = limit,
+                    MaxSellPrice = contractState.MaxSellPrice
                 });
 
                 return;
@@ -192,10 +194,11 @@ namespace Auto_Invest.Strategy
         }
 
 
-        public async Task OrderFilled(TickPosition tick)
+        public async Task OrderFilled(MarketOrder order)
         {
-            var contractState = await _contractManager.GetContractState(tick.Symbol);
-            var average = await _contractManager.GetContractsAverageValue(tick.Symbol);
+            var contractState = await _contractManager.GetContractState(order.Symbol);
+            var average = await _contractManager.GetContractsAverageValue(order.Symbol);
+            var marketPrice = await _contractManager.GetMarketPrice(order.Symbol);
 
             // The upper bound trigger value for a sell run is the market price plus the trailing offset
             var upperBound = UpperLimit(average, contractState.TrailingOffset);
@@ -261,7 +264,7 @@ namespace Auto_Invest.Strategy
                 var action = (contractState.Funding < 0)
                     ?
                     // Since funding is < 0 we are loaning money which means we need to sell
-                    (Func<MarketOrder, Task>) _contractManager.PlaceEmergencySellOrder
+                    (Func<MarketOrder, Task>)_contractManager.PlaceEmergencySellOrder
                     // If we are not loaning money then we are shorting stock which
                     // means we need to buy
                     : _contractManager.PlaceEmergencyBuyOrder;
@@ -286,33 +289,33 @@ namespace Auto_Invest.Strategy
             {
                 // If we are not trading on margin we should cleanup any emergency stop orders
                 // since we are not going to get a margin call
-                await _contractManager.ClearEmergencyOrders(tick.Symbol);
+                await _contractManager.ClearEmergencyOrders(order.Symbol);
             }
 
             // The market price is too high to short the stock and we are in a shorting position
-            if (maxSellPrice > 0 && tick.Position > maxSellPrice)
+            if (maxSellPrice > 0 && marketPrice > maxSellPrice)
             {
                 await _contractManager.PlaceMaxSellOrder(new MarketOrder
                 {
-                    Symbol = tick.Symbol,
+                    Symbol = order.Symbol,
                     Quantity = contractState.Quantity,
                     PricePerUnit = maxSellPrice
                 });
                 return;
             }
 
-            if (tick.Position > upperBound)
+            if (marketPrice > upperBound)
             {
                 // Place a sell stop order
                 // its a trail->stop at max if it has a value or
                 // or just a trail if max does not have a value
-                var limit = LowerLimit(tick.Position, contractState.TrailingOffset);
+                var limit = LowerLimit(marketPrice, contractState.TrailingOffset);
                 var qty = BuyQtyStrategy(contractState, limit);
                 if (qty == 0) return;
 
                 await _contractManager.PlaceTrailingSellOrder(new SellMarketOrder
                 {
-                    Symbol = tick.Symbol,
+                    Symbol = order.Symbol,
                     Quantity = qty,
                     PricePerUnit = limit,
                     MaxSellPrice = maxSellPrice
@@ -321,17 +324,17 @@ namespace Auto_Invest.Strategy
             }
 
             // lowerBound being the highest market price we can buy at even if we were to borrow
-            if (tick.Position < lowerBound)
+            if (marketPrice < lowerBound)
             {
                 // Place a buy stop order
                 // its a trail order starting at lowerBound using trailing offset
-                var limit = UpperLimit(tick.Position, contractState.TrailingOffset);
+                var limit = UpperLimit(marketPrice, contractState.TrailingOffset);
                 var qty = BuyQtyStrategy(contractState, limit);
                 if (qty == 0) return;
 
                 await _contractManager.PlaceTrailingBuyOrder(new MarketOrder
                 {
-                    Symbol = tick.Symbol,
+                    Symbol = order.Symbol,
                     Quantity = qty,
                     PricePerUnit = limit
                 });
@@ -344,7 +347,7 @@ namespace Auto_Invest.Strategy
             // For a buy its a trigger->trail starting at lowerBound
             await _contractManager.CreateTrigger(new TriggerDetails
             {
-                Symbol = tick.Symbol,
+                Symbol = order.Symbol,
                 UpperLimit = upperBound,
                 LowerLimit = lowerBound,
                 MaxSellPrice = maxSellPrice

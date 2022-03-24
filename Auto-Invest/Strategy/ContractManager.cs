@@ -8,21 +8,25 @@ namespace Auto_Invest.Strategy
     public class ContractManager :
         IContractManager,
         IBuySellLogic,
-        IRegisterContractEditor
+        IRegisterContractEditor,
+        IOrderCompletion
     {
         private readonly IContractClient _contractClient;
         private readonly IDictionary<string, Contract> _contracts = new Dictionary<string, Contract>();
         private readonly IDictionary<string, IContractEditor> _contractEditors = new Dictionary<string, IContractEditor>();
+        private IOrderFilledProcess _orderFilledProcess;
 
         public ContractManager(IContractClient contractClient)
         {
             _contractClient = contractClient;
+            _orderFilledProcess = null;
         }
 
         public void RegisterContract(Contract contract)
         {
             _contracts[contract.Symbol] = contract;
             contract.RegisterEditor(this);
+            _contractClient.ListenForCompletion(contract.Symbol, this);
         }
 
 
@@ -48,6 +52,8 @@ namespace Auto_Invest.Strategy
             var contract = _contracts[symbol];
             return await Task.FromResult(contract.AveragePrice);
         }
+
+        public async Task<decimal> GetMarketPrice(string symbol) => await _contractClient.GetMarketPrice(symbol);
 
         public async Task PlaceTrailingBuyOrder(MarketOrder order)
         {
@@ -227,6 +233,8 @@ namespace Auto_Invest.Strategy
             editor.ResetEmergencyOrders();
         }
 
+        public void RegisterForOrderFilled(IOrderFilledProcess process) => _orderFilledProcess = process;
+
         #region Implementation of IBuySaleLogic
 
         public async Task TrailingBuyComplete(ActionDetails details) => await Task.Run(() =>
@@ -326,6 +334,55 @@ namespace Auto_Invest.Strategy
 
         public void RegisterEditor(Contract state, IContractEditor contractEditor) =>
             _contractEditors[state.Symbol] = contractEditor;
+
+        #endregion
+
+        #region Implementation of IOrderCompletion
+
+        public async Task OrderCompleted(CompletedOrder order)
+        {
+            var contract = _contracts[order.Symbol];
+            if (contract.EmergencyOrders.Any(_ => _.OrderId == order.OrderId))
+            {
+                await EmergencyActionComplete(new EmergencyActionDetails
+                {
+                    Commission = order.Commission,
+                    CostOfOrder = order.CostOfOrder,
+                    OrderId = order.OrderId,
+                    PricePerUnit = order.PricePerUnit,
+                    Qty = order.Qty,
+                    Symbol = order.Symbol,
+                    Side = order.Side
+                });
+                return;
+            }
+
+            var actionDetails = new ActionDetails
+            {
+                Commission = order.Commission,
+                CostOfOrder = order.CostOfOrder,
+                OrderId = order.OrderId,
+                PricePerUnit = order.PricePerUnit,
+                Qty = order.Qty,
+                Symbol = order.Symbol
+            };
+
+            if (order.Side == ActionSide.Buy)
+            {
+                await TrailingBuyComplete(actionDetails);
+            }
+            else
+            {
+                await TrailingSellComplete(actionDetails);
+            }
+
+            _orderFilledProcess?.OrderFilled(new MarketOrder
+            {
+                Quantity = order.Qty,
+                PricePerUnit = order.PricePerUnit,
+                Symbol = order.Symbol
+            });
+        }
 
         #endregion
     }

@@ -8,7 +8,7 @@ namespace Auto_Invest.Strategy
         public const decimal MaintenanceMargin = 0.3M;
 
         public Contract(
-            string conId,
+            string symbol,
             decimal funding,
             decimal tradeQuantity,
             decimal trailingOffset,
@@ -16,11 +16,11 @@ namespace Auto_Invest.Strategy
             decimal initialQuantity = 0,
             decimal marginRisk = 0)
         {
-            if (string.IsNullOrWhiteSpace(conId)) throw new ArgumentNullException(nameof(conId));
+            if (string.IsNullOrWhiteSpace(symbol)) throw new ArgumentNullException(nameof(symbol));
             if (funding == 0 && initialQuantity == 0) throw new ArgumentException($"{nameof(funding)} and {nameof(initialQuantity)} cannot both be 0", nameof(funding));
             if (trailingOffset == 0) throw new ArgumentException($"{nameof(trailingOffset)} cannot be 0", nameof(trailingOffset));
 
-            ConId = conId.ToUpper();
+            Symbol = symbol.ToUpper();
             Funding = funding;
             SafetyLayers = safetyLayers;
             Quantity = initialQuantity;
@@ -36,7 +36,7 @@ namespace Auto_Invest.Strategy
         /// <summary>
         /// This is the stock symbol it is refereed to as contract ID in IBKR
         /// </summary>
-        public string ConId { get; }
+        public string Symbol { get; }
 
         /// <summary>
         /// What is the current running streak of the contract is it waiting to hit a trigger or are we trailing a buy or trailing a sell

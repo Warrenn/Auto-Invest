@@ -2,7 +2,7 @@
 {
     public class ActionDetails
     {
-        public string ConId { get; set; }
+        public string Symbol { get; set; }
         public decimal Qty { get; set; }
         public decimal PricePerUnit { get; set; }
         public decimal CostOfOrder { get; set; }

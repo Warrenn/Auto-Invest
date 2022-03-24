@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Auto_Invest.Strategy;
 using NUnit.Framework;
@@ -19,6 +20,9 @@ namespace Auto_Invest_Test
         [Test]
         public void GetTheCorrectMaxSellingPrice()
         {
+            var cT = Task.Factory.CancellationToken;
+            var mrst = ((ManualResetEvent) cT.WaitHandle).WaitOne();
+            
             var offset = 0M;
             var p =
             TrailingBuySellStrategy.SafetyPrice(75000, -1000, Contract.MaintenanceMargin, offset);
@@ -92,7 +96,7 @@ namespace Auto_Invest_Test
 
                 var position = new TickPosition
                 {
-                    ConId = Symbol,
+                    Symbol = Symbol,
                     Position = tick
                 };
 
@@ -119,7 +123,7 @@ namespace Auto_Invest_Test
                 {
                     await contractManager.BuyActionComplete(new ActionDetails
                     {
-                        ConId = Symbol,
+                        Symbol = Symbol,
                         PricePerUnit = contract.BuyOrderLimit,
                         CostOfOrder = contract.TradeQty * tick,
                         Qty = contract.TradeQty
@@ -133,7 +137,7 @@ namespace Auto_Invest_Test
                 {
                     await contractManager.SellActionComplete(new ActionDetails
                     {
-                        ConId = Symbol,
+                        Symbol = Symbol,
                         PricePerUnit = contract.SellOrderLimit,
                         CostOfOrder = contract.TradeQty * tick,
                         Qty = contract.TradeQty

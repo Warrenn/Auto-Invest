@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Auto_Invest.Strategy
@@ -21,18 +22,19 @@ namespace Auto_Invest.Strategy
 
         public void RegisterContract(Contract contract)
         {
-            _contracts[contract.ConId] = contract;
+            _contracts[contract.Symbol] = contract;
             contract.RegisterEditor(this);
         }
 
 
         #region Implementation of IStrategy
 
-        public async Task<Contract> GetContractState(string conId) =>
-            await Task.FromResult(_contracts[conId]);
+        public async Task<Contract> GetContractState(string symbol) =>
+            await Task.FromResult(_contracts[symbol]);
 
         public async Task CreateTrigger(TriggerDetails details)
         {
+            CancellationToken t = new CancellationToken();
             await Task.Run(() =>
             {
                 var editor = _contractEditors[details.ConId];
@@ -42,9 +44,9 @@ namespace Auto_Invest.Strategy
             });
         }
 
-        public async Task<decimal> GetContractsAverageValue(string conId)
+        public async Task<decimal> GetContractsAverageValue(string symbol)
         {
-            var contract = _contracts[conId];
+            var contract = _contracts[symbol];
             return await Task.FromResult(contract.AveragePrice);
         }
 
@@ -52,8 +54,8 @@ namespace Auto_Invest.Strategy
         {
             await Task.Run(() =>
             {
-                var contract = _contracts[order.ConId];
-                var editor = _contractEditors[order.ConId];
+                var contract = _contracts[order.Symbol];
+                var editor = _contractEditors[order.Symbol];
 
                 editor.SetUpperBound(-1);
                 editor.SetLowerBound(-1);
@@ -73,8 +75,8 @@ namespace Auto_Invest.Strategy
         {
             await Task.Run(() =>
             {
-                var contract = _contracts[order.ConId];
-                var editor = _contractEditors[order.ConId];
+                var contract = _contracts[order.Symbol];
+                var editor = _contractEditors[order.Symbol];
 
                 editor.SetUpperBound(-1);
                 editor.SetLowerBound(-1);
@@ -92,7 +94,7 @@ namespace Auto_Invest.Strategy
 
         public void InitializeContract(TickPosition tick)
         {
-            var editor = _contractEditors[tick.ConId];
+            var editor = _contractEditors[tick.Symbol];
             editor.SetAveragePrice(tick.Position);
         }
 
@@ -102,8 +104,8 @@ namespace Auto_Invest.Strategy
 
         public async Task BuyActionComplete(ActionDetails details) => await Task.Run(() =>
         {
-            var contract = _contracts[details.ConId];
-            var editor = _contractEditors[details.ConId];
+            var contract = _contracts[details.Symbol];
+            var editor = _contractEditors[details.Symbol];
             if (details.Qty <= 0) return;
 
             var originalQty = contract.Quantity;
@@ -135,8 +137,8 @@ namespace Auto_Invest.Strategy
 
         public async Task SellActionComplete(ActionDetails details) => await Task.Run(() =>
         {
-            var contract = _contracts[details.ConId];
-            var editor = _contractEditors[details.ConId];
+            var contract = _contracts[details.Symbol];
+            var editor = _contractEditors[details.Symbol];
             if (details.Qty <= 0) return;
 
             var originalQty = contract.Quantity;
@@ -169,7 +171,7 @@ namespace Auto_Invest.Strategy
         #region Implementation of IRegisterContractEditor
 
         public void RegisterEditor(Contract state, IContractEditor contractEditor) =>
-            _contractEditors[state.ConId] = contractEditor;
+            _contractEditors[state.Symbol] = contractEditor;
 
         #endregion
     }

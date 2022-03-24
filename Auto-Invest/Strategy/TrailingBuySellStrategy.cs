@@ -98,7 +98,7 @@ namespace Auto_Invest.Strategy
 
         public async Task Tick(TickPosition tick)
         {
-            var contractState = await _contractManager.GetContractState(tick.ConId);
+            var contractState = await _contractManager.GetContractState(tick.Symbol);
 
             if (contractState.RunState == RunState.BuyRun)
             {
@@ -109,7 +109,7 @@ namespace Auto_Invest.Strategy
                 await _contractManager.PlaceBuyStopOrder(new MarketOrder
                 {
                     Quantity = qty,
-                    ConId = tick.ConId,
+                    Symbol = tick.Symbol,
                     PricePerUnit = limit
                 });
 
@@ -124,7 +124,7 @@ namespace Auto_Invest.Strategy
                 var qty = SellQtyStrategy(contractState, limit);
                 await _contractManager.PlaceSellStopOrder(new MarketOrder
                 {
-                    ConId = tick.ConId,
+                    Symbol = tick.Symbol,
                     Quantity = qty,
                     PricePerUnit = limit
                 });
@@ -133,7 +133,7 @@ namespace Auto_Invest.Strategy
 
         public async Task UpperTriggerHit(TickPosition tick)
         {
-            var contractState = await _contractManager.GetContractState(tick.ConId);
+            var contractState = await _contractManager.GetContractState(tick.Symbol);
             var limit = LowerLimit(tick.Position, contractState.TrailingOffset);
             if (limit < contractState.AveragePrice) limit = contractState.AveragePrice;
 
@@ -141,7 +141,7 @@ namespace Auto_Invest.Strategy
             await _contractManager.PlaceSellStopOrder(new MarketOrder
             {
                 Quantity = qty,
-                ConId = tick.ConId,
+                Symbol = tick.Symbol,
                 PricePerUnit = limit
             });
         }
@@ -149,7 +149,7 @@ namespace Auto_Invest.Strategy
 
         public async Task LowerTriggerHit(TickPosition tick)
         {
-            var contractState = await _contractManager.GetContractState(tick.ConId);
+            var contractState = await _contractManager.GetContractState(tick.Symbol);
             var limit = UpperLimit(tick.Position, contractState.TrailingOffset);
             if (limit > contractState.AveragePrice) limit = contractState.AveragePrice;
 
@@ -158,7 +158,7 @@ namespace Auto_Invest.Strategy
             await _contractManager.PlaceBuyStopOrder(new MarketOrder
             {
                 Quantity = qty,
-                ConId = tick.ConId,
+                Symbol = tick.Symbol,
                 PricePerUnit = limit
             });
         }
@@ -174,8 +174,8 @@ namespace Auto_Invest.Strategy
             // average that an order can be completely fulled if purchase power is
             // less than the full price of a full purchase order
 
-            var contractState = await _contractManager.GetContractState(tick.ConId);
-            var average = await _contractManager.GetContractsAverageValue(tick.ConId);
+            var contractState = await _contractManager.GetContractState(tick.Symbol);
+            var average = await _contractManager.GetContractsAverageValue(tick.Symbol);
 
             var upperBound = UpperLimit(average, contractState.TrailingOffset);
             var lowerBound = LowerLimit(average, contractState.TrailingOffset);
@@ -241,7 +241,7 @@ namespace Auto_Invest.Strategy
 
                 await _contractManager.PlaceSellStopOrder(new MarketOrder
                 {
-                    ConId = tick.ConId,
+                    Symbol = tick.Symbol,
                     Quantity = qty,
                     PricePerUnit = limit
                 });
@@ -257,7 +257,7 @@ namespace Auto_Invest.Strategy
 
                 await _contractManager.PlaceBuyStopOrder(new MarketOrder
                 {
-                    ConId = tick.ConId,
+                    Symbol = tick.Symbol,
                     Quantity = qty,
                     PricePerUnit = limit
                 });
@@ -271,7 +271,7 @@ namespace Auto_Invest.Strategy
 
             await _contractManager.CreateTrigger(new TriggerDetails
             {
-                ConId = tick.ConId,
+                ConId = tick.Symbol,
                 UpperLimit = upperBound,
                 LowerLimit = lowerBound
             });

@@ -9,9 +9,14 @@
         void SetFunding(decimal newValue);
         void SetUpperBound(decimal newValue);
         void SetLowerBound(decimal newValue);
+        void SetMaxSellPrice(decimal newValue);
         void SetSellLimit(decimal newValue);
         void SetBuyLimit(decimal newValue);
-        void SetBuyOrderId(int newValue);
-        void SetSellOrderId(int newValue);
+        void SetTrailingBuyOrderId(int newValue);
+        void SetTrailingSellOrderId(int newValue);
+        void ResetEmergencyOrders();
+        void AddEmergencyOrder(EmergencyOrderDetail detail);
+        void SetMaxOrderId(int id);
+        void RemoveEmergencyOrderId(int orderId);
     }
 }

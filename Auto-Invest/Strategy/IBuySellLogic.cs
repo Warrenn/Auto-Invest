@@ -1,13 +1,11 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
+﻿using System.Threading.Tasks;
 
 namespace Auto_Invest.Strategy
 {
     public interface IBuySellLogic
     {
-        Task BuyActionComplete(ActionDetails details);
-        Task SellActionComplete(ActionDetails details);
+        Task TrailingBuyComplete(ActionDetails details);
+        Task TrailingSellComplete(ActionDetails details);
+        Task EmergencyActionComplete(EmergencyActionDetails details);
     }
 }

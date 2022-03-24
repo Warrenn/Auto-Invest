@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace Auto_Invest.Strategy
 {
@@ -6,6 +8,7 @@ namespace Auto_Invest.Strategy
     {
         public const decimal InitialMargin = 0.5M;
         public const decimal MaintenanceMargin = 0.3M;
+        private IList<EmergencyOrderDetail> _emergencyOrders = new List<EmergencyOrderDetail>();
 
         public Contract(
             string symbol,
@@ -39,7 +42,8 @@ namespace Auto_Invest.Strategy
         public string Symbol { get; }
 
         /// <summary>
-        /// What is the current running streak of the contract is it waiting to hit a trigger or are we trailing a buy or trailing a sell
+        /// What is the current running streak of the contract is it waiting to hit a trigger
+        /// trailing a buy, trailing a sell or waiting to hit a sell limit
         /// </summary>
         public RunState RunState { get; private set; }
 
@@ -63,6 +67,12 @@ namespace Auto_Invest.Strategy
         /// </summary>
         public decimal Funding { get; private set; }
 
+        /// <summary>
+        /// To avoid a margin call a buy or sell stop order is placed ahead of the
+        /// margin price. To avoid a complete loss the stop orders are place in
+        /// smaller units. The SafetyLayers is how many times to divide up the quantity
+        /// of stock on hand to work out the size of the orders
+        /// </summary>
         public uint SafetyLayers { get; }
 
         /// <summary>
@@ -99,18 +109,32 @@ namespace Auto_Invest.Strategy
         /// <summary>
         /// The tracking numbers of the orders placed for buy orders
         /// </summary>
-        public int BuyOrderId { get; private set; }
+        public int TrailingBuyOrderId { get; private set; }
 
         /// <summary>
         /// The tracking numbers of the orders placed for sell orders
         /// </summary>
-        public int SellOrderId { get; private set; }
+        public int TrailingSellOrderId { get; private set; }
 
         /// <summary>
-        /// The absolute hard limit of currency exposure when determining the quantity of a sell or buy order
+        /// The order id of the max sell order
+        /// </summary>
+        public int MaxSellOrderId { get; private set; }
+
+        /// <summary>
+        /// The tracking numbers of the emergency orders
+        /// </summary>
+        public IEnumerable<EmergencyOrderDetail> EmergencyOrders => _emergencyOrders.AsEnumerable();
+
+        /// <summary>
+        /// The the safety amount to offset against a margin price
         /// </summary>
         public decimal MarginRisk { get; }
 
+        /// <summary>
+        /// The highest possible market price that a short trade can be made
+        /// </summary>
+        public decimal MaxSellPrice { get; private set; }
 
         public void RegisterEditor(IRegisterContractEditor register) => register.RegisterEditor(this, new ContractEditor(this));
 
@@ -132,8 +156,18 @@ namespace Auto_Invest.Strategy
             public void SetLowerBound(decimal newValue) => _state.LowerBound = newValue;
             public void SetSellLimit(decimal newValue) => _state.SellOrderLimit = newValue;
             public void SetBuyLimit(decimal newValue) => _state.BuyOrderLimit = newValue;
-            public void SetBuyOrderId(int newValue) => _state.BuyOrderId = newValue;
-            public void SetSellOrderId(int newValue) => _state.SellOrderId = newValue;
+            public void SetMaxOrderId(int id) => _state.MaxSellOrderId = id;
+            public void RemoveEmergencyOrderId(int orderId)
+            {
+                var order = _state.EmergencyOrders.First(_ => _.OrderId == orderId);
+                ((IList<EmergencyOrderDetail>) _state.EmergencyOrders).Remove(order);
+            }
+
+            public void SetTrailingBuyOrderId(int newValue) => _state.TrailingBuyOrderId = newValue;
+            public void SetTrailingSellOrderId(int newValue) => _state.TrailingSellOrderId = newValue;
+            public void SetMaxSellPrice(decimal newValue) => _state.MaxSellPrice = newValue;
+            public void ResetEmergencyOrders() => _state._emergencyOrders = new List<EmergencyOrderDetail>();
+            public void AddEmergencyOrder(EmergencyOrderDetail detail) => _state._emergencyOrders.Add(detail);
         }
     }
 }

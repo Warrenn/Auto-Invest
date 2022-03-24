@@ -121,7 +121,7 @@ namespace Auto_Invest_Test
                 if (contract.RunState == RunState.BuyRun &&
                     (tick >= contract.BuyOrderLimit))
                 {
-                    await contractManager.BuyActionComplete(new ActionDetails
+                    await contractManager.TrailingBuyComplete(new ActionDetails
                     {
                         Symbol = Symbol,
                         PricePerUnit = contract.BuyOrderLimit,
@@ -135,7 +135,7 @@ namespace Auto_Invest_Test
                 if (contract.RunState == RunState.SellRun &&
                     (tick <= contract.SellOrderLimit))
                 {
-                    await contractManager.SellActionComplete(new ActionDetails
+                    await contractManager.TrailingSellComplete(new ActionDetails
                     {
                         Symbol = Symbol,
                         PricePerUnit = contract.SellOrderLimit,

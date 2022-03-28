@@ -107,7 +107,7 @@ namespace Auto_Invest_Strategy
         public decimal TradeQty { get; }
 
         /// <summary>
-        /// The tracking numbers of the orders placed for buy orders
+        /// The tracking number of the ordes placed for a buy order
         /// </summary>
         public int TrailingBuyOrderId { get; private set; }
 

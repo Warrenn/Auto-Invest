@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net5.0</TargetFramework>
+    <TargetFramework>net6.0</TargetFramework>
     <RootNamespace>Auto_Invest_Test</RootNamespace>
 
     <IsPackable>false</IsPackable>
@@ -9,9 +9,12 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="16.9.4" />
+    <PackageReference Include="moq" Version="4.17.2" />
     <PackageReference Include="NUnit" Version="3.13.1" />
     <PackageReference Include="NUnit3TestAdapter" Version="3.17.0" />
     <PackageReference Include="coverlet.collector" Version="3.0.2" />
+    <PackageReference Include="shouldly" Version="4.0.3" />
+    <PackageReference Include="teststack.bddfy" Version="4.3.2" />
     <PackageReference Include="YahooFinanceApi" Version="2.1.2" />
   </ItemGroup>
 

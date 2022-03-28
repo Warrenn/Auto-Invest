@@ -72,20 +72,14 @@ namespace Auto_Invest_Strategy
                 editor.SetTrailingSellOrderId(-1);
             }
 
-            var orderResult = (contract.TrailingBuyOrderId > 0)
-                ? await _contractClient.UpdateStopLmtBuy(new StopLimitUpdate
-                {
-                    Symbol = order.Symbol,
-                    OrderId = contract.TrailingBuyOrderId,
-                    Quantity = order.Quantity,
-                    StopPrice = order.PricePerUnit
-                })
-                : await _contractClient.PlaceStopLmtBuy(new StopLimit
-                {
-                    Symbol = order.Symbol,
-                    Quantity = order.Quantity,
-                    StopPrice = order.PricePerUnit
-                });
+            var orderResult = await _contractClient.PlaceStopLimit(new StopLimit
+            {
+                Quantity = order.Quantity,
+                OrderId = contract.TrailingBuyOrderId,
+                Side = ActionSide.Buy,
+                StopPrice = order.PricePerUnit,
+                Symbol = order.Symbol
+            });
 
             editor.SetTrailingBuyOrderId(orderResult.OrderId);
         }
@@ -108,20 +102,14 @@ namespace Auto_Invest_Strategy
                 editor.SetTrailingBuyOrderId(-1);
             }
 
-            var orderResult = (contract.TrailingSellOrderId > 0)
-                ? await _contractClient.UpdateStopLmtSell(new StopLimitUpdate
-                {
-                    Symbol = order.Symbol,
-                    OrderId = contract.TrailingSellOrderId,
-                    Quantity = order.Quantity,
-                    StopPrice = order.PricePerUnit
-                })
-                : await _contractClient.PlaceStopLmtSell(new StopLimit
-                {
-                    Symbol = order.Symbol,
-                    Quantity = order.Quantity,
-                    StopPrice = order.PricePerUnit
-                });
+            var orderResult = await _contractClient.PlaceStopLimit(new StopLimit
+            {
+                Quantity = order.Quantity,
+                OrderId = contract.TrailingSellOrderId,
+                Side = ActionSide.Sell,
+                StopPrice = order.PricePerUnit,
+                Symbol = order.Symbol
+            });
 
             editor.SetTrailingBuyOrderId(orderResult.OrderId);
         }
@@ -135,11 +123,12 @@ namespace Auto_Invest_Strategy
                 _ => _.Action == ActionSide.Sell &&
                      _.PricePerUnit == order.PricePerUnit)) return;
 
-            var orderResult = await _contractClient.PlaceStopLmtSell(new StopLimit
+            var orderResult = await _contractClient.PlaceStopLimit(new StopLimit
             {
                 Symbol = order.Symbol,
                 Quantity = order.Quantity,
-                StopPrice = order.PricePerUnit
+                StopPrice = order.PricePerUnit,
+                Side = ActionSide.Sell
             });
 
             editor.AddEmergencyOrder(new EmergencyOrderDetail
@@ -159,11 +148,12 @@ namespace Auto_Invest_Strategy
                 _ => _.Action == ActionSide.Buy &&
                      _.PricePerUnit == order.PricePerUnit)) return;
 
-            var orderResult = await _contractClient.PlaceStopLmtBuy(new StopLimit
+            var orderResult = await _contractClient.PlaceStopLimit(new StopLimit
             {
                 Symbol = order.Symbol,
                 Quantity = order.Quantity,
-                StopPrice = order.PricePerUnit
+                StopPrice = order.PricePerUnit,
+                Side = ActionSide.Buy
             });
 
             editor.AddEmergencyOrder(new EmergencyOrderDetail
@@ -197,16 +187,13 @@ namespace Auto_Invest_Strategy
                 editor.SetTrailingSellOrderId(-1);
             }
 
-            if (contract.MaxSellOrderId > 0)
-            {
-                await _contractClient.CancelOrder(contract.MaxSellOrderId);
-            }
-
-            var orderResult = await _contractClient.PlaceStopLmtSell(new StopLimit
+            var orderResult = await _contractClient.PlaceStopLimit(new StopLimit
             {
                 Symbol = order.Symbol,
                 Quantity = order.Quantity,
-                StopPrice = order.PricePerUnit
+                StopPrice = order.PricePerUnit,
+                Side = ActionSide.Sell,
+                OrderId = contract.MaxSellOrderId
             });
 
             editor.SetMaxOrderId(orderResult.OrderId);

@@ -18,4 +18,8 @@
     <Folder Include="Strategy\" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\Auto-Invest-Strategy\Auto-Invest-Strategy.csproj" />
+  </ItemGroup>
+
 </Project>

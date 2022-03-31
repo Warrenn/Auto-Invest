@@ -1,23 +1,24 @@
-using System;
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.Linq;
-using System.Threading;
 using System.Threading.Tasks;
 using Auto_Invest_Strategy;
-using NUnit.Framework;
 using TestStack.BDDfy;
-using YahooFinanceApi;
+using Xunit;
 
 namespace Auto_Invest_Test
 {
+    //Test Triggers are set appropriately
+    //Test that buy run and sell run are set appropriately
+    //Test that buy trigger is set lower than offset if borrowing funds
+    //Test that emergency sell value is set appropriately if shorting stocks
+    //Test that emergency stops are correct if borrowing funds
+    //Test that emergency stops are correct if shorting stock
+    //Test that emergency stop at max value is removed when trade results in no more shorting
+    //Test that emergency stops are removed if trade results in no more shorting
     [Story(
         AsA = "Trader",
         IWant = "To Automate my trades",
         SoThat = "I can have automatic trades")]
     public class Tests
     {
-        [SetUp]
         public void Setup()
         {
         }
@@ -28,9 +29,10 @@ namespace Auto_Invest_Test
 
         private async Task TradesAre(params decimal[] trades) { }
 
-        [Test]
+        [Fact]
         public async Task SetupTriggerStopLosses()
         {
+
             // G
 
             var trades = new[] { 10, 12 };
@@ -48,13 +50,13 @@ namespace Auto_Invest_Test
 
             //Assert short sale
             this
+                .Given()
             .Given(_ => _.TheFundsAre(1000))
             .When(_ => _.TradesAre(10, 11, 12))
             .Then(_ => _.ShouldBeOK())
             .BDDfy();
         }
 
-        [Test]
         public void GetTheCorrectMaxSellingPrice()
         {
             var offset = 1M;

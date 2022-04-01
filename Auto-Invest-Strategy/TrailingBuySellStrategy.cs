@@ -4,9 +4,10 @@ using System.Threading.Tasks;
 
 namespace Auto_Invest_Strategy
 {
-    public class TrailingBuySellStrategy : IOrderFilledProcess
+    public class TrailingBuySellStrategy : IOrderFilledProcess, IRecordTick
     {
         private readonly IContractManager _contractManager;
+        private IDictionary<string, decimal> _prices = new Dictionary<string, decimal>();
 
         private static decimal LowerLimit(decimal baseAmount, decimal offset)
             => baseAmount - offset;
@@ -60,7 +61,7 @@ namespace Auto_Invest_Strategy
                 // If we have the funds and don't need to borrow do the trade
                 if (contract.Funding > orderCost) return contract.TradeQty;
 
-                var purchasePower = BorrowPower(contract.Funding, contract.Quantity, price, Contract.InitialMargin) + contract.Funding;
+                var purchasePower = BorrowPower(contract.Funding, contract.QuantityOnHand, price, Contract.InitialMargin) + contract.Funding;
                 // If we have the purchase power to loan do the trade
                 return purchasePower > orderCost ? contract.TradeQty : 0;
             };
@@ -76,20 +77,20 @@ namespace Auto_Invest_Strategy
 
                 var qty = contract.TradeQty;
                 // If we have the stocks and don't need to borrow do the trade
-                if (contract.Quantity >= qty) return contract.TradeQty;
+                if (contract.QuantityOnHand >= qty) return contract.TradeQty;
 
                 // If we don't have enough stocks work out how much we can short
-                var purchasePower = BorrowPower(contract.Funding, contract.Quantity, price, Contract.InitialMargin);
+                var purchasePower = BorrowPower(contract.Funding, contract.QuantityOnHand, price, Contract.InitialMargin);
 
                 // If we have some stocks then we need to only short the difference
-                if (contract.Quantity > 0)
+                if (contract.QuantityOnHand > 0)
                 {
-                    qty -= contract.Quantity;
+                    qty -= contract.QuantityOnHand;
                 }
                 else
                 {
                     // The purchase power is reduced if we have already shorted some stocks
-                    purchasePower -= Math.Abs(contract.Quantity) * price;
+                    purchasePower -= Math.Abs(contract.QuantityOnHand) * price;
                 }
 
                 var orderCost = price * qty + contract.MarginRisk;
@@ -99,7 +100,20 @@ namespace Auto_Invest_Strategy
 
         public async Task Tick(TickPosition tick)
         {
+            _prices[tick.Symbol] = tick.Position;
             var contractState = await _contractManager.GetContractState(tick.Symbol);
+
+            if (contractState.AveragePrice == 0)
+            {
+                _contractManager.InitializeContract(tick);
+                await OrderFilled(new MarketOrder
+                {
+                    PricePerUnit = tick.Position,
+                    Quantity = 0,
+                    Symbol = tick.Symbol
+                }); ;
+                return;
+            }
 
             if (contractState.RunState != RunState.SellCapped &&
                 contractState.MaxSellPrice > 0 &&
@@ -196,9 +210,10 @@ namespace Auto_Invest_Strategy
 
         public async Task OrderFilled(MarketOrder order)
         {
-            var contractState = await _contractManager.GetContractState(order.Symbol);
-            var average = await _contractManager.GetContractsAverageValue(order.Symbol);
-            var marketPrice = await _contractManager.GetMarketPrice(order.Symbol);
+            var symbol = order.Symbol;
+            var contractState = await _contractManager.GetContractState(symbol);
+            var average = await _contractManager.GetContractsAverageValue(symbol);
+            var marketPrice = await _contractManager.GetMarketPrice(symbol);
 
             // The upper bound trigger value for a sell run is the market price plus the trailing offset
             var upperBound = UpperLimit(average, contractState.TrailingOffset);
@@ -212,37 +227,37 @@ namespace Auto_Invest_Strategy
             var maxSellPrice = -1M;
 
             // This is the cost of a trade right now and it includes the trailing offset
-            var costOfTrade = average * contractState.TradeQty + contractState.TrailingOffset;
+            var costOfTrade = marketPrice * contractState.TradeQty + contractState.TrailingOffset;
+
+            var borrowPower = BorrowPower(contractState.Funding, contractState.QuantityOnHand, marketPrice, Contract.InitialMargin);
 
             // The buying power is what ever amount we can borrow plus whatever funds we have or
             // less what we have already borrowed (in which case Funding would be < 0)
-            var buyingPower =
-                BorrowPower(contractState.Funding, contractState.Quantity, average, Contract.InitialMargin) +
-                contractState.Funding;
+            var buyingPower = borrowPower + contractState.Funding;
 
             // If we can't afford to buy the stock now then we need to find the highest price we can buy at
             if (buyingPower < costOfTrade)
             {
                 // The lower bound is the highest price we can afford to buy at and it must include the trailing offset
-                lowerBound = buyingPower / contractState.Quantity - contractState.TrailingOffset;
+                lowerBound = LowerLimit(buyingPower / contractState.QuantityOnHand, contractState.TrailingOffset);
             }
 
             // If we don't have enough stock on hand to do a sell then we need to short
             // The maxSellPrice gives us the amount of the highest possible price we can short at
-            if (contractState.Quantity < contractState.TradeQty)
+            if (contractState.QuantityOnHand < contractState.TradeQty)
             {
-                var purchasePower = BorrowPower(contractState.Funding, contractState.Quantity, average, Contract.InitialMargin);
+                var purchasePower = borrowPower;
                 var qty = contractState.TradeQty;
 
                 // If I have some stocks then I need to only short the difference
-                if (contractState.Quantity > 0)
+                if (contractState.QuantityOnHand > 0)
                 {
-                    qty -= contractState.Quantity;
+                    qty -= contractState.QuantityOnHand;
                 }
                 else
                 {
                     // My purchase power is reduced if I have already shorted some stocks
-                    purchasePower -= Math.Abs(contractState.Quantity) * average;
+                    purchasePower -= Math.Abs(contractState.QuantityOnHand) * marketPrice;
                 }
 
                 // Include the MarginRisk when obtaining the max sell limit
@@ -251,20 +266,19 @@ namespace Auto_Invest_Strategy
 
             // If we are trading on margin going long or short we need to put the protection
             // limits in place to avoid a margin call
-            if (contractState.Funding < 0 || contractState.Quantity < 0)
+            if (contractState.Funding < 0 || contractState.QuantityOnHand < 0)
             {
                 // This is the safety strategy to avoid a margin call. To avoid a complete loss
                 // we rather sell or buy in smaller units so as to buy more time for the market
                 // to recover instead of realizing a complete loss when the margin price is hit
-                var qty = Math.Abs(contractState.Quantity) / contractState.SafetyLayers;
+                var qty = Math.Abs(contractState.QuantityOnHand) / contractState.SafetyLayers;
 
                 // If we are loaning money we need to sell some of our stock before the price
-                // drops too far down, if we are shorting stock we need to buy some before the
+                // drops too far down and if we are shorting stock we need to buy some before the
                 // price rises too high
                 var action = (contractState.Funding < 0)
-                    ?
                     // Since funding is < 0 we are loaning money which means we need to sell
-                    (Func<MarketOrder, Task>)_contractManager.PlaceEmergencySellOrder
+                    ? (Func<MarketOrder, Task>)_contractManager.PlaceEmergencySellOrder
                     // If we are not loaning money then we are shorting stock which
                     // means we need to buy
                     : _contractManager.PlaceEmergencyBuyOrder;
@@ -273,7 +287,8 @@ namespace Auto_Invest_Strategy
                 // are needed for the stop orders
                 foreach (var threshold in SafetyThresholds(
                     contractState.Funding,
-                    contractState.Quantity, Contract.MaintenanceMargin,
+                    contractState.QuantityOnHand,
+                    Contract.MaintenanceMargin,
                     contractState.MarginRisk,
                     contractState.SafetyLayers))
                 {
@@ -288,8 +303,8 @@ namespace Auto_Invest_Strategy
             else
             {
                 // If we are not trading on margin we should cleanup any emergency stop orders
-                // since we are not going to get a margin call
-                await _contractManager.ClearEmergencyOrders(order.Symbol);
+                // since we are not likely to get a margin call
+                await _contractManager.ClearEmergencyOrders(symbol);
             }
 
             // The market price is too high to short the stock and we are in a shorting position
@@ -297,8 +312,8 @@ namespace Auto_Invest_Strategy
             {
                 await _contractManager.PlaceMaxSellOrder(new MarketOrder
                 {
-                    Symbol = order.Symbol,
-                    Quantity = contractState.Quantity,
+                    Symbol = symbol,
+                    Quantity = contractState.QuantityOnHand,
                     PricePerUnit = maxSellPrice
                 });
                 return;
@@ -315,7 +330,7 @@ namespace Auto_Invest_Strategy
 
                 await _contractManager.PlaceTrailingSellOrder(new SellMarketOrder
                 {
-                    Symbol = order.Symbol,
+                    Symbol = symbol,
                     Quantity = qty,
                     PricePerUnit = limit,
                     MaxSellPrice = maxSellPrice
@@ -334,7 +349,7 @@ namespace Auto_Invest_Strategy
 
                 await _contractManager.PlaceTrailingBuyOrder(new MarketOrder
                 {
-                    Symbol = order.Symbol,
+                    Symbol = symbol,
                     Quantity = qty,
                     PricePerUnit = limit
                 });
@@ -347,7 +362,7 @@ namespace Auto_Invest_Strategy
             // For a buy its a trigger->trail starting at lowerBound
             await _contractManager.CreateTrigger(new TriggerDetails
             {
-                Symbol = order.Symbol,
+                Symbol = symbol,
                 UpperLimit = upperBound,
                 LowerLimit = lowerBound,
                 MaxSellPrice = maxSellPrice

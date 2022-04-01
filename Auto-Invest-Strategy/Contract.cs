@@ -26,7 +26,7 @@ namespace Auto_Invest_Strategy
             Symbol = symbol.ToUpper();
             Funding = funding;
             SafetyLayers = safetyLayers;
-            Quantity = initialQuantity;
+            QuantityOnHand = initialQuantity;
             TrailingOffset = trailingOffset;
             MarginRisk = Math.Abs(marginRisk);
             TradeQty = Math.Abs(tradeQuantity);
@@ -60,7 +60,7 @@ namespace Auto_Invest_Strategy
         /// <summary>
         /// The amount of stock that is on hand for this contract or the total amount of stock owed
         /// </summary>
-        public decimal Quantity { get; private set; }
+        public decimal QuantityOnHand { get; private set; }
 
         /// <summary>
         /// The amount of liquid cash held in the account held for the contract
@@ -150,7 +150,7 @@ namespace Auto_Invest_Strategy
             public void SetRunState(RunState newState) => _state.RunState = newState;
             public void SetAveragePrice(decimal newValue) => _state.AveragePrice = newValue;
             public void SetTotalCost(decimal newValue) => _state.TotalCost = newValue;
-            public void SetQuantity(decimal newValue) => _state.Quantity = newValue;
+            public void SetQuantity(decimal newValue) => _state.QuantityOnHand = newValue;
             public void SetFunding(decimal newValue) => _state.Funding = newValue;
             public void SetUpperBound(decimal newValue) => _state.UpperBound = newValue;
             public void SetLowerBound(decimal newValue) => _state.LowerBound = newValue;

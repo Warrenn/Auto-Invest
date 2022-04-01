@@ -15,5 +15,6 @@ namespace Auto_Invest_Strategy
         public Task PlaceMaxSellOrder(MarketOrder order);
         Task ClearEmergencyOrders(string symbol);
         void RegisterForOrderFilled(IOrderFilledProcess process);
+        void InitializeContract(TickPosition tick);
     }
 }

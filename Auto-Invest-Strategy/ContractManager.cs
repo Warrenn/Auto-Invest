@@ -244,9 +244,9 @@ namespace Auto_Invest_Strategy
 
         private static void BuyComplete(ActionDetails details, Contract contract, IContractEditor editor)
         {
-            var originalQty = contract.Quantity;
+            var originalQty = contract.QuantityOnHand;
             var originalCost = contract.TotalCost;
-            var newQuantity = contract.Quantity + details.Qty;
+            var newQuantity = contract.QuantityOnHand + details.Qty;
             var newTotalCost = originalCost + details.CostOfOrder;
 
             editor.SetQuantity(newQuantity);
@@ -282,7 +282,7 @@ namespace Auto_Invest_Strategy
 
         private static void SellComplete(ActionDetails details, Contract contract, IContractEditor editor)
         {
-            var originalQty = contract.Quantity;
+            var originalQty = contract.QuantityOnHand;
             var originalCost = contract.TotalCost;
             var newQuantity = originalQty - details.Qty;
             var newTotalCost = originalCost - contract.AveragePrice * details.Qty;

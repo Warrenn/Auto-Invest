@@ -1,3 +1,4 @@
+using System;
 using System.Threading.Tasks;
 using Auto_Invest_Strategy;
 using TestStack.BDDfy;
@@ -5,18 +6,7 @@ using Xunit;
 
 namespace Auto_Invest_Test
 {
-    //Test Triggers are set appropriately
-    //Test that buy run and sell run are set appropriately
-    //Test that buy trigger is set lower than offset if borrowing funds
-    //Test that emergency sell value is set appropriately if shorting stocks
-    //Test that emergency stops are correct if borrowing funds
-    //Test that emergency stops are correct if shorting stock
-    //Test that emergency stop at max value is removed when trade results in no more shorting
-    //Test that emergency stops are removed if trade results in no more shorting
-    [Story(
-        AsA = "Trader",
-        IWant = "To Automate my trades",
-        SoThat = "I can have automatic trades")]
+
     public class Tests
     {
         public void Setup()
@@ -25,7 +15,7 @@ namespace Auto_Invest_Test
 
         private void ShouldBeOK() { }
 
-        private void TheFundsAre(decimal amt) { }
+
 
         private async Task TradesAre(params decimal[] trades) { }
 

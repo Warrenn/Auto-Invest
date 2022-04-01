@@ -13,7 +13,6 @@ namespace Auto_Invest
         private readonly IBClient _client;
         private readonly IDictionary<int, OrderProgress> _orders = new Dictionary<int, OrderProgress>();
         private readonly IDictionary<string, double> _commission = new Dictionary<string, double>();
-        private readonly IDictionary<string, decimal> _price = new Dictionary<string, decimal>();
 
         public IBKRClientContract(IBClient client)
         {
@@ -121,17 +120,6 @@ namespace Auto_Invest
                     Symbol = progress.Symbol
                 });
             }
-        }
-
-        public async Task<decimal> GetMarketPrice(string symbol)
-        {
-            if (_price.ContainsKey(symbol)) return _price[symbol];
-            return 0;
-        }
-
-        public void SetMarketPrice(string symbol, decimal price)
-        {
-            _price[symbol] = price;
         }
 
         #endregion

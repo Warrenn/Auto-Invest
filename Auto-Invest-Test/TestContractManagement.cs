@@ -126,7 +126,7 @@ namespace Auto_Invest_Test
                 .And(_ => _.given_trailing_of(1), "And a trail of $1")
                 .When(_ => _.when_trades_are(10), "When the trades are $10 per unit")
                 .Then(_ => _.the_upper_bound_should_be(11), "The Upper Bound should be $11")
-                .And(_ => _.the_lower_bound_should_be(10), "The Lower Bound should be $9")
+                .And(_ => _.the_lower_bound_should_be(9), "The Lower Bound should be $9")
                 .And(_ => _.the_average_should_be(10), "The Average for the contract should be $10")
                 .And(_ => _.the_runstate_should_be(RunState.TriggerRun), "The Contract RunState should be TriggerRun")
                 .BDDfy();

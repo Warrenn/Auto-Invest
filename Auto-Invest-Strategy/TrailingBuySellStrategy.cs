@@ -111,7 +111,7 @@ namespace Auto_Invest_Strategy
                     PricePerUnit = tick.Position,
                     Quantity = 0,
                     Symbol = tick.Symbol
-                }); ;
+                });
                 return;
             }
 
@@ -239,7 +239,7 @@ namespace Auto_Invest_Strategy
             if (buyingPower < costOfTrade)
             {
                 // The lower bound is the highest price we can afford to buy at and it must include the trailing offset
-                lowerBound = LowerLimit(buyingPower / contractState.QuantityOnHand, contractState.TrailingOffset);
+                lowerBound = LowerLimit(buyingPower / contractState.TradeQty, contractState.TrailingOffset);
             }
 
             // If we don't have enough stock on hand to do a sell then we need to short
@@ -308,7 +308,7 @@ namespace Auto_Invest_Strategy
             }
 
             // The market price is too high to short the stock and we are in a shorting position
-            if (maxSellPrice > 0 && marketPrice > maxSellPrice)
+            if (contractState.QuantityOnHand <= 0 && marketPrice > maxSellPrice)
             {
                 await _contractManager.PlaceMaxSellOrder(new MarketOrder
                 {

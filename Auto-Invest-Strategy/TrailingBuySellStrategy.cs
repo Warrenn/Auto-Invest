@@ -213,7 +213,7 @@ namespace Auto_Invest_Strategy
             var symbol = order.Symbol;
             var contractState = await _contractManager.GetContractState(symbol);
             var average = await _contractManager.GetContractsAverageValue(symbol);
-            var marketPrice = await _contractManager.GetMarketPrice(symbol);
+            var marketPrice = _prices[symbol];
 
             // The upper bound trigger value for a sell run is the market price plus the trailing offset
             var upperBound = UpperLimit(average, contractState.TrailingOffset);

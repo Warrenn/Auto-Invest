@@ -53,8 +53,6 @@ namespace Auto_Invest_Strategy
             return await Task.FromResult(contract.AveragePrice);
         }
 
-        public async Task<decimal> GetMarketPrice(string symbol) => await _contractClient.GetMarketPrice(symbol);
-
         public async Task PlaceTrailingBuyOrder(MarketOrder order)
         {
             var contract = _contracts[order.Symbol];

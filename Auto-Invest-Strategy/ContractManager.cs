@@ -109,7 +109,7 @@ namespace Auto_Invest_Strategy
                 Symbol = order.Symbol
             });
 
-            editor.SetTrailingBuyOrderId(orderResult.OrderId);
+            editor.SetTrailingSellOrderId(orderResult.OrderId);
         }
 
         public async Task PlaceEmergencySellOrder(MarketOrder order)

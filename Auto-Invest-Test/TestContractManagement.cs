@@ -7,6 +7,7 @@ using Shouldly;
 using Moq;
 using static System.Math;
 using System.Collections.Generic;
+using TestStack.BDDfy.Configuration;
 
 namespace Auto_Invest_Test
 {
@@ -34,45 +35,65 @@ namespace Auto_Invest_Test
     {
         const string SYMBOL = "SYMBOL";
         private decimal _funds = 1000;
-        private decimal _amount = 10;
+        private decimal _tradeQty = 10;
+        private decimal _initialAmount = 0;
+        private uint _layers = 10;
         private decimal _trailing = 1;
         private Contract _contract;
-        private Mock<IContractClient> _contractClientMock = new();
+        private readonly Mock<IContractClient> _contractClientMock = new();
         private ContractManager _manager;
         private TrailingBuySellStrategy _strategy;
+        private Dictionary<int, StopLimit> _stopLimits;
+
+        public TestContractManagement()
+        {
+            Configurator.Processors.ConsoleReport.Enable();
+            Configurator.Processors.TestRunner.Enable();
+        }
 
         public void given_funds_of(decimal funds) { _funds = funds; }
-        public void given_amount_of(decimal amount) { _amount = amount; }
+        public void given_trade_qty_of(decimal amount) { _tradeQty = amount; }
+        public void given_initial_amount_of(decimal amount) { _initialAmount = amount; }
+        public void given_layers_of(uint amount) { _layers = amount; }
         public void given_trailing_of(decimal trailing) { _trailing = trailing; }
         public void the_upper_bound_should_be(decimal upperBound) => _contract.UpperBound.ShouldBe(upperBound);
         public void the_lower_bound_should_be(decimal lowerBound) => _contract.LowerBound.ShouldBe(lowerBound);
         public void the_average_should_be(decimal average) => _contract.AveragePrice.ShouldBe(average);
         public void the_runstate_should_be(RunState runstate) { _contract.RunState.ShouldBe(runstate); }
+        public void the_max_stop_limit_should_be_set() =>
+            _stopLimits.ShouldContain(_ => _.Value.Side == ActionSide.Sell && _.Value.StopPrice == _contract.MaxSellPrice);
+        public void the_trailing_stop_limit_should_be(ActionSide side, decimal stopLimit)
+        {
+            _stopLimits.ShouldContain(_ => _.Value.Side == side && _.Value.StopPrice == stopLimit);
+            if (side == ActionSide.Sell) _contract.TrailingSellOrderId.ShouldBeGreaterThan(0);
+            else _contract.TrailingBuyOrderId.ShouldBeGreaterThan(0);
+        }
 
+        public void the_max_price_should_be(decimal maxPrice) => _contract.MaxSellPrice.ShouldBe(maxPrice);
         public async Task when_trades_are(params decimal[] trades)
         {
             IOrderCompletion orderCompletion = null;
             var orderId = 1;
-            var stopLimits = new Dictionary<int, StopLimit>();
+            _stopLimits = new Dictionary<int, StopLimit>();
 
-            _contract = new Contract(SYMBOL, _funds, _amount, _trailing);
+            _contract = new Contract(SYMBOL, _funds, _tradeQty, _trailing, safetyLayers: _layers, initialQuantity: _initialAmount);
             _contractClientMock
                 .Setup(_ => _.ListenForCompletion(SYMBOL, It.IsAny<IOrderCompletion>()))
                 .Callback((string s, IOrderCompletion o) => { orderCompletion = o; });
             _contractClientMock
                 .Setup(_ => _.PlaceStopLimit(It.IsAny<StopLimit>()))
-                .Callback(async (StopLimit l) => await Task.Run(() =>
+                .ReturnsAsync((StopLimit l) =>
                 {
                     if (l.OrderId < 1) l.OrderId = orderId++;
-                    stopLimits[l.OrderId] = l;
+                    _stopLimits[l.OrderId] = l;
                     return new ContractResult { OrderId = l.OrderId };
-                }));
+                });
             _contractClientMock
                 .Setup(_ => _.CancelOrder(It.IsAny<int>()))
-                .Callback(async (int orderId) => await Task.Run(() =>
+                .Callback(async (int id) => await Task.Run(() =>
                 {
-                    if (stopLimits.ContainsKey(orderId))
-                        stopLimits.Remove(orderId);
+                    if (_stopLimits.ContainsKey(id))
+                        _stopLimits.Remove(id);
                 }));
 
             _manager = new ContractManager(_contractClientMock.Object);
@@ -82,27 +103,21 @@ namespace Auto_Invest_Test
             var previousTrade = trades[0];
             foreach (var trade in trades)
             {
-                await _strategy.Tick(new TickPosition
-                {
-                    Position = trade,
-                    Symbol = "SYMBOL"
-                });
-
                 var min = Min(trade, previousTrade);
                 var max = Max(trade, previousTrade);
 
-                foreach (var limit in stopLimits.Values)
+                foreach (var limit in _stopLimits.Values)
                 {
                     if (limit.StopPrice < min || limit.StopPrice > max) continue;
-                    var slippage = limit.Side == ActionSide.Sell ? 0.1M : -0.1M;
+                    var slippage = limit.Side == ActionSide.Sell ? -0.1M : 0.1M;
                     var price = limit.StopPrice + slippage;
                     var orderCost = price * limit.Quantity;
-                    var commision = Max(1M, orderCost * 0.01M);
+                    var commission = Max(1M, orderCost * 0.01M);
 
-                    orderCompletion?.OrderCompleted(new CompletedOrder
+                    await orderCompletion?.OrderCompleted(new CompletedOrder
                     {
                         OrderId = limit.OrderId,
-                        Commission = commision,
+                        Commission = commission,
                         CostOfOrder = orderCost,
                         PricePerUnit = price,
                         Qty = limit.Quantity,
@@ -110,13 +125,34 @@ namespace Auto_Invest_Test
                         Symbol = limit.Symbol
                     });
 
-                    stopLimits.Remove(limit.OrderId);
+                    _stopLimits.Remove(limit.OrderId);
                 }
+
+                await _strategy.Tick(new TickPosition
+                {
+                    Position = trade,
+                    Symbol = "SYMBOL"
+                });
 
                 previousTrade = trade;
             }
             _contract = await _manager.GetContractState(SYMBOL);
         }
+        private void the_limit_order_update_should_be_called_more_than_once(ActionSide side, int times)
+        {
+            var orderId = side == ActionSide.Sell ? _contract.TrailingSellOrderId : _contract.TrailingBuyOrderId;
+            var stopPrice = side == ActionSide.Sell ? _contract.SellOrderLimit : _contract.BuyOrderLimit;
+            _contractClientMock.Verify(_ => _.PlaceStopLimit(It.Is<StopLimit>(l =>
+                l.Side == side &&
+                l.OrderId == orderId)), Times.AtLeast(times));
+        }
+        private void the_funds_should_be(decimal funds) => _contract.Funding.ShouldBe(funds);
+
+        private void the_quantity_should_be(decimal amount) => _contract.QuantityOnHand.ShouldBe(amount);
+
+        private void there_should_be_no_sell_limit_value() => _contract.SellOrderLimit.ShouldBe(-1);
+
+        private void there_should_be_no_buy_limit_value() => _contract.BuyOrderLimit.ShouldBe(-1);
 
         [Fact]
         public void upper_and_lower_bounds_need_to_be_correct()
@@ -131,6 +167,96 @@ namespace Auto_Invest_Test
                 .And(_ => _.the_runstate_should_be(RunState.TriggerRun), "The Contract RunState should be TriggerRun")
                 .BDDfy();
         }
+
+
+        [Fact]
+        public void trailing_sell_should_be_under_market_price()
+        {
+            this
+                .Given(_ => _.given_funds_of(1000), "Given funds of $1000")
+                .And(_ => _.given_trailing_of(1), "And a trail of $1")
+                .When(_ => _.when_trades_are(10, 20), "When the trades go up past trigger points")
+                .Then(_ => _.the_upper_bound_should_be(-1), "The Upper Bound should be removed")
+                .And(_ => _.the_lower_bound_should_be(-1), "The Lower Bound should be removed")
+                .And(_ => _.the_average_should_be(10), "The Average for the contract should be $10")
+                .And(_ => _.the_runstate_should_be(RunState.SellRun), "The Contract RunState should be SellRun")
+                .And(_ => _.the_trailing_stop_limit_should_be(ActionSide.Sell, 19), "The trailing stop sell limit should be the trail value under market price")
+                .And(_ => _.the_max_price_should_be(199), "the max price should be the highest price that a short can be afforded")
+                .BDDfy("sell should be under market price");
+        }
+
+        [Fact]
+        public void trailing_buy_should_be_under_market_price()
+        {
+            this
+                .Given(_ => _.given_funds_of(1000), "Given funds of $1000")
+                .And(_ => _.given_trailing_of(1), "And a trail of $1")
+                .When(_ => _.when_trades_are(10, 5), "When the trades go down below trigger points")
+                .Then(_ => _.the_upper_bound_should_be(-1), "The Upper Bound should be removed")
+                .And(_ => _.the_lower_bound_should_be(-1), "The Lower Bound should be removed")
+                .And(_ => _.the_average_should_be(10), "The Average for the contract should be ${0}")
+                .And(_ => _.the_runstate_should_be(RunState.BuyRun), "The Contract RunState should be BuyRun")
+                .And(_ => _.the_trailing_stop_limit_should_be(ActionSide.Buy, 6), "The trailing stop by limit should be the trail value over the market price")
+                .And(_ => _.the_max_price_should_be(199), "the max price should be the highest price that a short can be afforded")
+                .BDDfy("buy should be under market price");
+        }
+
+        [Fact]
+        public void trailing_buy_should_move_with_the_market_price()
+        {
+            this
+                .Given(_ => _.given_funds_of(1000), "Given funds of ${0}")
+                .And(_ => _.given_trailing_of(1), "And a trail of ${0}")
+                .When(_ => _.when_trades_are(10, 7, 5), "When the trades go down below trigger points")
+                .Then(_ => _.the_upper_bound_should_be(-1), "The Upper Bound should be removed")
+                .And(_ => _.the_lower_bound_should_be(-1), "The Lower Bound should be removed")
+                .And(_ => _.the_average_should_be(10), "The Average for the contract should be ${0}")
+                .And(_ => _.the_runstate_should_be(RunState.BuyRun), "The Contract RunState should be BuyRun")
+                .And(_ => _.the_trailing_stop_limit_should_be(ActionSide.Buy, 6), "The trailing stop by limit should be the trail value over the market price")
+                .And(_ => _.the_limit_order_update_should_be_called_more_than_once(ActionSide.Buy, 2), "The limit order needs to be updated at least {0} times")
+                .And(_ => _.the_max_price_should_be(199), "the max price should be the highest price that a short can be afforded")
+                .BDDfy("trailing buy should move with the market price");
+        }
+
+        [Fact]
+        public void trailing_sell_should_move_with_the_market_price()
+        {
+            this
+                .Given(_ => _.given_funds_of(1000), "Given funds of ${0}")
+                .And(_ => _.given_trailing_of(1), "And a trail of ${0}")
+                .When(_ => _.when_trades_are(10, 20, 30), "When the trades go above trigger points")
+                .Then(_ => _.the_upper_bound_should_be(-1), "The Upper Bound should be removed")
+                .And(_ => _.the_lower_bound_should_be(-1), "The Lower Bound should be removed")
+                .And(_ => _.the_average_should_be(10), "The Average for the contract should be ${0}")
+                .And(_ => _.the_runstate_should_be(RunState.SellRun), "The Contract RunState should be SellRun")
+                .And(_ => _.the_trailing_stop_limit_should_be(ActionSide.Sell, 29), "The trailing stop by limit should be the trail under the market price")
+                .And(_ => _.the_limit_order_update_should_be_called_more_than_once(ActionSide.Sell, 2), "The limit order needs to be updated at least {0} times")
+                .And(_ => _.the_max_price_should_be(199), "the max price should be the highest price that a short can be afforded")
+                .BDDfy("trailing sell should move with the market price");
+        }
+
+        [Fact]
+        public void sell_stocks_when_there_is_a_reversal()
+        {
+            this
+                .Given(_ => _.given_funds_of(1000), "Given funds of ${0}")
+                .And(_ => _.given_trailing_of(1), "And a trail of ${0}")
+                .And(_ => _.given_initial_amount_of(10), "And an initial amount of {0}")
+                .And(_ => _.given_trade_qty_of(10))
+                .When(_ => _.when_trades_are(10, 20, 30, 29), "When the market values runs up and then suddenly reverses down")
+                .Then(_ => _.the_upper_bound_should_be(30), "The Upper Bound should be reset")
+                .And(_ => _.the_lower_bound_should_be(28), "The Lower Bound should be reset")
+                .And(_ => _.the_average_should_be(29), "The Average for the contract should be ${0}")
+                .And(_ => _.the_runstate_should_be(RunState.TriggerRun), "The Contract RunState should be TriggerRun")
+                .And(_ => _.there_should_be_no_buy_limit_value())
+                .And(_ => _.there_should_be_no_sell_limit_value())
+                .And(_ => _.the_quantity_should_be(0), "The quantity should be {0}")
+                .And(_ => _.the_funds_should_be((decimal)(1000 + (28.9 * 10) - ((28.9 * 10) * 0.01))), "The funds should be ${0}")
+                .And(_ => _.the_limit_order_update_should_be_called_more_than_once(ActionSide.Sell, 3), "The limit order needs to be updated at least {0} times")
+                .And(_ => _.the_max_price_should_be(199), "the max price should be the highest price that a short can be afforded")
+                .BDDfy("a sell run should trigger a sell order on a reversal");
+        }
+
 
         //public void GetTheCorrectMaxSellingPrice()
         //{

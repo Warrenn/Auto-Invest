@@ -13,7 +13,6 @@ namespace Auto_Invest_Strategy
 
         private static decimal UpperLimit(decimal baseAmount, decimal offset)
             => baseAmount + offset;
-
         public TrailingBuySellStrategy(IContractManager contractManager)
         {
             _contractManager = contractManager;
@@ -43,60 +42,6 @@ namespace Auto_Invest_Strategy
         public static decimal BorrowPower(decimal funds, decimal quantity, decimal price, decimal margin) =>
             (quantity * price + funds) / margin;
 
-        public static decimal MarginCallPrice(decimal price, decimal initialMargin, decimal maintenanceMargin) =>
-            price * (1 - initialMargin) / (1 - maintenanceMargin);
-
-        public Func<Contract, decimal, decimal> BuyQtyStrategy { get; set; } =
-            (contract, price) =>
-            {
-                if (price <= 0) return 0;
-                // Never buy above the average price
-                if (contract.AveragePrice > 0 &&
-                    price > contract.AveragePrice) return 0;
-                if (contract.AveragePrice == 0) return 0;
-
-                var orderCost = price * contract.TradeQty + contract.MarginRisk;
-
-                // If we have the funds and don't need to borrow do the trade
-                if (contract.Funding > orderCost) return contract.TradeQty;
-
-                var purchasePower = BorrowPower(contract.Funding, contract.QuantityOnHand, price, Contract.InitialMargin) + contract.Funding;
-                // If we have the purchase power to loan do the trade
-                return purchasePower > orderCost ? contract.TradeQty : 0;
-            };
-
-        public Func<Contract, decimal, decimal> SellQtyStrategy { get; set; } =
-            (contract, price) =>
-            {
-                if (price <= 0) return 0;
-                // Never sell below the average price that was bought
-                if (contract.AveragePrice > 0 &&
-                    price < contract.AveragePrice) return 0;
-                if (contract.AveragePrice == 0) return 0;
-
-                var qty = contract.TradeQty;
-                // If we have the stocks and don't need to borrow do the trade
-                if (contract.QuantityOnHand >= qty) return contract.TradeQty;
-
-                // If we don't have enough stocks work out how much we can short
-                var purchasePower = BorrowPower(contract.Funding, contract.QuantityOnHand, price, Contract.InitialMargin);
-
-                // If we have some stocks then we need to only short the difference
-                if (contract.QuantityOnHand > 0)
-                {
-                    qty -= contract.QuantityOnHand;
-                }
-                else
-                {
-                    // The purchase power is reduced if we have already shorted some stocks
-                    purchasePower -= Math.Abs(contract.QuantityOnHand) * price;
-                }
-
-                var orderCost = price * qty + contract.MarginRisk;
-                // If we have the purchase power to short do the trade
-                return purchasePower > orderCost ? contract.TradeQty : 0;
-            };
-
         public async Task Tick(TickPosition tick)
         {
             var contractState = await _contractManager.GetContractState(tick.Symbol);
@@ -117,12 +62,9 @@ namespace Auto_Invest_Strategy
                 contractState.MaxSellPrice > 0 &&
                 tick.Position >= contractState.MaxSellPrice)
             {
-                var qty = SellQtyStrategy(contractState, contractState.MaxSellPrice);
-                if (qty == 0) return;
-
                 await _contractManager.PlaceMaxSellOrder(new MarketOrder
                 {
-                    Quantity = qty,
+                    Quantity = contractState.TradeQty,
                     PricePerUnit = contractState.MaxSellPrice,
                     Symbol = tick.Symbol
                 });
@@ -136,12 +78,9 @@ namespace Auto_Invest_Strategy
                 var limit = UpperLimit(tick.Position, contractState.TrailingOffset);
                 if (limit > contractState.BuyOrderLimit) return;
 
-                var qty = BuyQtyStrategy(contractState, limit);
-                if (qty == 0) return;
-
                 await _contractManager.PlaceTrailingBuyOrder(new MarketOrder
                 {
-                    Quantity = qty,
+                    Quantity = contractState.TradeQty,
                     Symbol = tick.Symbol,
                     PricePerUnit = limit
                 });
@@ -154,13 +93,10 @@ namespace Auto_Invest_Strategy
                 var limit = LowerLimit(tick.Position, contractState.TrailingOffset);
                 if (limit < contractState.SellOrderLimit) return;
 
-                var qty = SellQtyStrategy(contractState, limit);
-                if (qty == 0) return;
-
                 await _contractManager.PlaceTrailingSellOrder(new SellMarketOrder
                 {
                     Symbol = tick.Symbol,
-                    Quantity = qty,
+                    Quantity = contractState.TradeQty,
                     PricePerUnit = limit,
                     MaxSellPrice = contractState.MaxSellPrice
                 });
@@ -174,12 +110,9 @@ namespace Auto_Invest_Strategy
                 var limit = LowerLimit(tick.Position, contractState.TrailingOffset);
                 if (limit < contractState.AveragePrice) limit = contractState.AveragePrice;
 
-                var qty = SellQtyStrategy(contractState, limit);
-                if (qty == 0) return;
-
                 await _contractManager.PlaceTrailingSellOrder(new SellMarketOrder
                 {
-                    Quantity = qty,
+                    Quantity = contractState.TradeQty,
                     Symbol = tick.Symbol,
                     PricePerUnit = limit,
                     MaxSellPrice = contractState.MaxSellPrice
@@ -193,12 +126,9 @@ namespace Auto_Invest_Strategy
                 var limit = UpperLimit(tick.Position, contractState.TrailingOffset);
                 if (limit > contractState.AveragePrice) limit = contractState.AveragePrice;
 
-                var qty = BuyQtyStrategy(contractState, limit);
-                if (qty == 0) return;
-
                 await _contractManager.PlaceTrailingBuyOrder(new MarketOrder
                 {
-                    Quantity = qty,
+                    Quantity = contractState.TradeQty,
                     Symbol = tick.Symbol,
                     PricePerUnit = limit
                 });
@@ -236,8 +166,9 @@ namespace Auto_Invest_Strategy
             // If we can't afford to buy the stock now then we need to find the highest price we can buy at
             if (buyingPower < costOfTrade)
             {
-                // The lower bound is the highest price we can afford to buy at and it must include the trailing offset
-                lowerBound = LowerLimit(buyingPower / contractState.TradeQty, contractState.TrailingOffset);
+                // The lower bound is the highest price we can afford to buy at and it must include the margin risk and trailing offset
+                lowerBound = LowerLimit(buyingPower / contractState.TradeQty, contractState.TrailingOffset) - contractState.MarginRisk;
+                lowerBound = lowerBound < 0 ? 0 : lowerBound;
             }
 
             // If we don't have enough stock on hand to do a sell then we need to short
@@ -306,7 +237,7 @@ namespace Auto_Invest_Strategy
             }
 
             // The market price is too high to short the stock and we are in a shorting position
-            if (contractState.QuantityOnHand <= 0 && marketPrice > maxSellPrice)
+            if (contractState.QuantityOnHand < contractState.TradeQty && marketPrice > maxSellPrice)
             {
                 await _contractManager.PlaceMaxSellOrder(new MarketOrder
                 {
@@ -323,13 +254,12 @@ namespace Auto_Invest_Strategy
                 // its a trail->stop at max if it has a value or
                 // or just a trail if max does not have a value
                 var limit = LowerLimit(marketPrice, contractState.TrailingOffset);
-                var qty = BuyQtyStrategy(contractState, limit);
-                if (qty == 0) return;
+                if (limit < contractState.AveragePrice) limit = contractState.AveragePrice;
 
                 await _contractManager.PlaceTrailingSellOrder(new SellMarketOrder
                 {
                     Symbol = symbol,
-                    Quantity = qty,
+                    Quantity = contractState.TradeQty,
                     PricePerUnit = limit,
                     MaxSellPrice = maxSellPrice
                 });
@@ -342,13 +272,12 @@ namespace Auto_Invest_Strategy
                 // Place a buy stop order
                 // its a trail order starting at lowerBound using trailing offset
                 var limit = UpperLimit(marketPrice, contractState.TrailingOffset);
-                var qty = BuyQtyStrategy(contractState, limit);
-                if (qty == 0) return;
+                if (limit > contractState.AveragePrice) limit = contractState.AveragePrice;
 
                 await _contractManager.PlaceTrailingBuyOrder(new MarketOrder
                 {
                     Symbol = symbol,
-                    Quantity = qty,
+                    Quantity = contractState.TradeQty,
                     PricePerUnit = limit
                 });
                 return;

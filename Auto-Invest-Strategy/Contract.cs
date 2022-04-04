@@ -107,19 +107,19 @@ namespace Auto_Invest_Strategy
         public decimal TradeQty { get; }
 
         /// <summary>
-        /// The tracking number of the ordes placed for a buy order
+        /// The tracking number of the order placed for a buy order
         /// </summary>
-        public int TrailingBuyOrderId { get; private set; }
+        public int TrailingBuyOrderId { get; private set; } = -1;
 
         /// <summary>
-        /// The tracking numbers of the orders placed for sell orders
+        /// The tracking numbers of the order placed for sell order
         /// </summary>
-        public int TrailingSellOrderId { get; private set; }
+        public int TrailingSellOrderId { get; private set; } = -1;
 
         /// <summary>
         /// The order id of the max sell order
         /// </summary>
-        public int MaxSellOrderId { get; private set; }
+        public int MaxSellOrderId { get; private set; } = -1;
 
         /// <summary>
         /// The tracking numbers of the emergency orders

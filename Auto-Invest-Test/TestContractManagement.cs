@@ -11,21 +11,15 @@ using TestStack.BDDfy.Configuration;
 
 namespace Auto_Invest_Test
 {
-    //Test Triggers are set appropriately
-    //Test that buy run and sell run are set appropriately
     //Test that buy trigger is set lower than offset if borrowing funds
-    //Test that emergency sell value is set appropriately if shorting stocks
     //Test that emergency stops are correct if borrowing funds
+
+    //Assert short sale
+    //Test that emergency sell value is set appropriately if shorting stocks
     //Test that emergency stops are correct if shorting stock
+
     //Test that emergency stop at max value is removed when trade results in no more shorting
     //Test that emergency stops are removed if trade results in no more shorting
-    //trigger a buy run
-    //move a stop for buy
-    //move a stop for sell
-    //fill a contract
-    // - the avereage is correct
-    // //trigger a sell run
-    //Assert short sale
 
     [Story(
         AsA = "Trader",
@@ -37,7 +31,7 @@ namespace Auto_Invest_Test
         private decimal _funds = 1000;
         private decimal _tradeQty = 10;
         private decimal _initialAmount = 0;
-        private uint _layers = 10;
+        private uint _bands = 10;
         private decimal _trailing = 1;
         private Contract _contract;
         private readonly Mock<IContractClient> _contractClientMock = new();
@@ -54,7 +48,7 @@ namespace Auto_Invest_Test
         public void given_funds_of(decimal funds) { _funds = funds; }
         public void given_trade_qty_of(decimal amount) { _tradeQty = amount; }
         public void given_initial_amount_of(decimal amount) { _initialAmount = amount; }
-        public void given_layers_of(uint amount) { _layers = amount; }
+        public void given_layers_of(uint amount) { _bands = amount; }
         public void given_trailing_of(decimal trailing) { _trailing = trailing; }
         public void the_upper_bound_should_be(decimal upperBound) => _contract.UpperBound.ShouldBe(upperBound);
         public void the_lower_bound_should_be(decimal lowerBound) => _contract.LowerBound.ShouldBe(lowerBound);
@@ -76,7 +70,7 @@ namespace Auto_Invest_Test
             var orderId = 1;
             _stopLimits = new Dictionary<int, StopLimit>();
 
-            _contract = new Contract(SYMBOL, _funds, _tradeQty, _trailing, safetyLayers: _layers, initialQuantity: _initialAmount);
+            _contract = new Contract(SYMBOL, _funds, _tradeQty, _trailing, _bands, _initialAmount);
             _contractClientMock
                 .Setup(_ => _.ListenForCompletion(SYMBOL, It.IsAny<IOrderCompletion>()))
                 .Callback((string s, IOrderCompletion o) => { orderCompletion = o; });
@@ -141,7 +135,6 @@ namespace Auto_Invest_Test
         private void the_limit_order_update_should_be_called_more_than_once(ActionSide side, int times)
         {
             var orderId = side == ActionSide.Sell ? _contract.TrailingSellOrderId : _contract.TrailingBuyOrderId;
-            var stopPrice = side == ActionSide.Sell ? _contract.SellOrderLimit : _contract.BuyOrderLimit;
             _contractClientMock.Verify(_ => _.PlaceStopLimit(It.Is<StopLimit>(l =>
                 l.Side == side &&
                 l.OrderId == orderId)), Times.AtLeast(times));
@@ -244,16 +237,35 @@ namespace Auto_Invest_Test
                 .And(_ => _.given_initial_amount_of(10), "And an initial amount of {0}")
                 .And(_ => _.given_trade_qty_of(10))
                 .When(_ => _.when_trades_are(10, 20, 30, 29), "When the market values runs up and then suddenly reverses down")
-                .Then(_ => _.the_upper_bound_should_be(30), "The Upper Bound should be reset")
-                .And(_ => _.the_lower_bound_should_be(28), "The Lower Bound should be reset")
-                .And(_ => _.the_average_should_be(29), "The Average for the contract should be ${0}")
+                .Then(_ => _.the_upper_bound_should_be(29.9M), "The Upper Bound should be reset")
+                .And(_ => _.the_lower_bound_should_be(27.9M), "The Lower Bound should be reset")
+                .And(_ => _.the_average_should_be(28.9M), "The Average for the contract should be ${0}")
                 .And(_ => _.the_runstate_should_be(RunState.TriggerRun), "The Contract RunState should be TriggerRun")
                 .And(_ => _.there_should_be_no_buy_limit_value())
                 .And(_ => _.there_should_be_no_sell_limit_value())
                 .And(_ => _.the_quantity_should_be(0), "The quantity should be {0}")
                 .And(_ => _.the_funds_should_be((decimal)(1000 + (28.9 * 10) - ((28.9 * 10) * 0.01))), "The funds should be ${0}")
-                .And(_ => _.the_limit_order_update_should_be_called_more_than_once(ActionSide.Sell, 3), "The limit order needs to be updated at least {0} times")
-                .And(_ => _.the_max_price_should_be(199), "the max price should be the highest price that a short can be afforded")
+                .And(_ => _.the_max_price_should_be(256.222M), "the max price should be the highest price that a short can be afforded")
+                .BDDfy("a sell run should trigger a sell order on a reversal");
+        }
+
+        [Fact]
+        public void buy_stocks_when_there_is_a_reversal()
+        {
+            this
+                .Given(_ => _.given_funds_of(1000), "Given funds of ${0}")
+                .And(_ => _.given_trailing_of(1), "And a trail of ${0}")
+                .And(_ => _.given_trade_qty_of(10))
+                .When(_ => _.when_trades_are(30, 20, 10, 11), "When the market values runs down and then suddenly reverses up")
+                .Then(_ => _.the_upper_bound_should_be(12.1M), "The Upper Bound should be reset")
+                .And(_ => _.the_lower_bound_should_be(10.1M), "The Lower Bound should be reset")
+                .And(_ => _.the_average_should_be(11.1M), "The Average for the contract should be ${0}")
+                .And(_ => _.the_runstate_should_be(RunState.TriggerRun), "The Contract RunState should be TriggerRun")
+                .And(_ => _.there_should_be_no_buy_limit_value())
+                .And(_ => _.there_should_be_no_sell_limit_value())
+                .And(_ => _.the_quantity_should_be(10), "The quantity should be {0}")
+                .And(_ => _.the_funds_should_be((decimal)(1000 - (11.1 * 10) - ((11.1 * 10) * 0.01))), "The funds should be ${0}")
+                .And(_ => _.the_max_price_should_be(-1), "the max price should be the highest price that a short can be afforded")
                 .BDDfy("a sell run should trigger a sell order on a reversal");
         }
 

@@ -7,7 +7,6 @@ namespace Auto_Invest_Strategy
     public class TrailingBuySellStrategy : IOrderFilledProcess, IRecordTick
     {
         private readonly IContractManager _contractManager;
-        private IDictionary<string, decimal> _prices = new Dictionary<string, decimal>();
 
         private static decimal LowerLimit(decimal baseAmount, decimal offset)
             => baseAmount - offset;
@@ -100,7 +99,6 @@ namespace Auto_Invest_Strategy
 
         public async Task Tick(TickPosition tick)
         {
-            _prices[tick.Symbol] = tick.Position;
             var contractState = await _contractManager.GetContractState(tick.Symbol);
 
             if (contractState.AveragePrice == 0)
@@ -213,7 +211,7 @@ namespace Auto_Invest_Strategy
             var symbol = order.Symbol;
             var contractState = await _contractManager.GetContractState(symbol);
             var average = await _contractManager.GetContractsAverageValue(symbol);
-            var marketPrice = _prices[symbol];
+            var marketPrice = order.PricePerUnit;
 
             // The upper bound trigger value for a sell run is the market price plus the trailing offset
             var upperBound = UpperLimit(average, contractState.TrailingOffset);
@@ -271,7 +269,7 @@ namespace Auto_Invest_Strategy
                 // This is the safety strategy to avoid a margin call. To avoid a complete loss
                 // we rather sell or buy in smaller units so as to buy more time for the market
                 // to recover instead of realizing a complete loss when the margin price is hit
-                var qty = Math.Abs(contractState.QuantityOnHand) / contractState.SafetyLayers;
+                var qty = Math.Abs(contractState.QuantityOnHand) / contractState.SafetyBands;
 
                 // If we are loaning money we need to sell some of our stock before the price
                 // drops too far down and if we are shorting stock we need to buy some before the
@@ -290,7 +288,7 @@ namespace Auto_Invest_Strategy
                     contractState.QuantityOnHand,
                     Contract.MaintenanceMargin,
                     contractState.MarginRisk,
-                    contractState.SafetyLayers))
+                    contractState.SafetyBands))
                 {
                     await action(new MarketOrder
                     {

@@ -235,7 +235,7 @@ namespace Auto_Invest_Strategy
             var editor = _contractEditors[details.Symbol];
             if (details.Qty <= 0) return;
             editor.SetTrailingBuyOrderId(-1);
-            editor.SetBuyLimit(0);
+            editor.SetBuyLimit(-1);
 
             BuyComplete(details, contract, editor);
         });
@@ -273,7 +273,7 @@ namespace Auto_Invest_Strategy
             var editor = _contractEditors[details.Symbol];
             if (details.Qty <= 0) return;
             editor.SetTrailingSellOrderId(-1);
-            editor.SetSellLimit(0);
+            editor.SetSellLimit(-1);
 
             SellComplete(details, contract, editor);
         });

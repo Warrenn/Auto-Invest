@@ -15,7 +15,7 @@ namespace Auto_Invest_Strategy
             decimal funding,
             decimal tradeQuantity,
             decimal trailingOffset,
-            uint safetyLayers = 10,
+            uint safetyBands = 10,
             decimal initialQuantity = 0,
             decimal marginRisk = 0)
         {
@@ -25,7 +25,7 @@ namespace Auto_Invest_Strategy
 
             Symbol = symbol.ToUpper();
             Funding = funding;
-            SafetyLayers = safetyLayers;
+            SafetyBands = safetyBands;
             QuantityOnHand = initialQuantity;
             TrailingOffset = trailingOffset;
             MarginRisk = Math.Abs(marginRisk);
@@ -33,7 +33,7 @@ namespace Auto_Invest_Strategy
 
             if (TrailingOffset <= 0) TrailingOffset = 1;
             if (MarginRisk <= 0) MarginRisk = TrailingOffset;
-            if (SafetyLayers == 0) SafetyLayers = 1;
+            if (SafetyBands == 0) SafetyBands = 1;
         }
 
         /// <summary>
@@ -70,10 +70,10 @@ namespace Auto_Invest_Strategy
         /// <summary>
         /// To avoid a margin call a buy or sell stop order is placed ahead of the
         /// margin price. To avoid a complete loss the stop orders are place in
-        /// smaller units. The SafetyLayers is how many times to divide up the quantity
+        /// smaller units. The SafetyBands is how many times to divide up the quantity
         /// of stock on hand to work out the size of the orders
         /// </summary>
-        public uint SafetyLayers { get; }
+        public uint SafetyBands { get; }
 
         /// <summary>
         /// The upper limit price for the trigger that when hit will put the contract into a sell run.

@@ -17,7 +17,9 @@ namespace Auto_Invest_Strategy
             decimal trailingOffset,
             uint safetyBands = 10,
             decimal initialQuantity = 0,
-            decimal marginRisk = 0)
+            decimal marginSafety = 0,
+            decimal averagePrice = 0,
+            decimal totalCost = 0)
         {
             if (string.IsNullOrWhiteSpace(symbol)) throw new ArgumentNullException(nameof(symbol));
             if (funding == 0 && initialQuantity == 0) throw new ArgumentException($"{nameof(funding)} and {nameof(initialQuantity)} cannot both be 0", nameof(funding));
@@ -28,11 +30,13 @@ namespace Auto_Invest_Strategy
             SafetyBands = safetyBands;
             QuantityOnHand = initialQuantity;
             TrailingOffset = trailingOffset;
-            MarginRisk = Math.Abs(marginRisk);
+            TotalCost = totalCost;
+            MarginSafety = Math.Abs(marginSafety);
             TradeQty = Math.Abs(tradeQuantity);
+            AveragePrice = Math.Abs(averagePrice);
 
-            if (TrailingOffset <= 0) TrailingOffset = 1;
-            if (MarginRisk <= 0) MarginRisk = TrailingOffset;
+            if (TrailingOffset < 0) TrailingOffset = 0;
+            if (MarginSafety < 0) MarginSafety = TrailingOffset;
             if (SafetyBands == 0) SafetyBands = 1;
         }
 
@@ -45,7 +49,7 @@ namespace Auto_Invest_Strategy
         /// What is the current running streak of the contract is it waiting to hit a trigger
         /// trailing a buy, trailing a sell or waiting to hit a sell limit
         /// </summary>
-        public RunState RunState { get; private set; }
+        public RunState RunState { get; private set; } = RunState.TriggerRun;
 
         /// <summary>
         /// The average price of the stock held on hand at this moment or the average price of the stock owed at this moment
@@ -129,7 +133,7 @@ namespace Auto_Invest_Strategy
         /// <summary>
         /// The the safety amount to offset against a margin price
         /// </summary>
-        public decimal MarginRisk { get; }
+        public decimal MarginSafety { get; }
 
         /// <summary>
         /// The highest possible market price that a short trade can be made
@@ -160,7 +164,7 @@ namespace Auto_Invest_Strategy
             public void RemoveEmergencyOrderId(int orderId)
             {
                 var order = _state.EmergencyOrders.First(_ => _.OrderId == orderId);
-                ((IList<EmergencyOrderDetail>) _state.EmergencyOrders).Remove(order);
+                ((IList<EmergencyOrderDetail>)_state.EmergencyOrders).Remove(order);
             }
 
             public void SetTrailingBuyOrderId(int newValue) => _state.TrailingBuyOrderId = newValue;

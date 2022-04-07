@@ -31,7 +31,7 @@ namespace Auto_Invest_Test
         const string SYMBOL = "SYMBOL";
         private decimal _funds = 1000;
         private decimal _tradeQty = 10;
-        private decimal _initialAmount = 0;
+        private decimal _initialAmount;
         private uint _bands = 10;
         private decimal _trailing = 1;
         private Contract _contract;
@@ -39,6 +39,7 @@ namespace Auto_Invest_Test
         private ContractManager _manager;
         private TrailingBuySellStrategy _strategy;
         private Dictionary<int, StopLimit> _stopLimits;
+        private decimal _totalCost;
 
         public TestContractManagement()
         {
@@ -100,6 +101,7 @@ namespace Auto_Invest_Test
         }
 
         public void the_max_price_should_be(decimal maxPrice) => _contract.MaxSellPrice.ShouldBe(maxPrice);
+        public void given_total_cost_of(decimal totalCost) => _totalCost = totalCost;
 
         public async Task when_trades_are(params decimal[] trades)
         {
@@ -107,7 +109,7 @@ namespace Auto_Invest_Test
             var orderId = 1;
             _stopLimits = new Dictionary<int, StopLimit>();
 
-            _contract = new Contract(SYMBOL, _funds, _tradeQty, _trailing, _bands, _initialAmount);
+            _contract = new Contract(SYMBOL, _funds, _tradeQty, _trailing, _bands, _initialAmount, marginSafety: 1, totalCost: _totalCost);
             _contractClientMock
                 .Setup(_ => _.ListenForCompletion(SYMBOL, It.IsAny<IOrderCompletion>()))
                 .Callback((string s, IOrderCompletion o) => { orderCompletion = o; });
@@ -141,9 +143,9 @@ namespace Auto_Invest_Test
                 {
                     if (limit.StopPrice < min || limit.StopPrice > max) continue;
                     var slippage = limit.Side == ActionSide.Sell ? -0.1M : 0.1M;
-                    var price = limit.StopPrice + slippage;
+                    var price = limit.StopPrice;//+ slippage;
                     var orderCost = price * limit.Quantity;
-                    var commission = Max(1M, orderCost * 0.01M);
+                    var commission = 0;//Max(1M, orderCost * 0.01M);
 
                     await orderCompletion?.OrderCompleted(new CompletedOrder
                     {
@@ -183,7 +185,7 @@ namespace Auto_Invest_Test
                 .And(_ => _.the_runstate_should_be(RunState.TriggerRun), "The Contract RunState should be TriggerRun")
                 .BDDfy();
         }
-        
+
         [Fact]
         public void trailing_sell_should_be_under_market_price()
         {
@@ -295,18 +297,20 @@ namespace Auto_Invest_Test
         public void borrow_when_funds_are_insufficient()
         {
             this
-                .Given(_ => _.given_funds_of(10), "Given funds of ${0}")
+                .Given(_ => _.given_funds_of(0), "Given funds of ${0}")
                 .And(_ => _.given_trailing_of(1), "And a trail of ${0}")
+                .And(_ => _.given_total_cost_of(30 * 4))
                 .And(_ => _.given_trade_qty_of(10))
                 .And(_ => _.given_initial_amount_of(4))
                 .When(_ => _.when_trades_are(30, 25, 20, 22), "When the market values runs down and then suddenly reverses up")
-                .And(_ => _.the_quantity_should_be(20), "The quantity should be {0}")
+                .Then(_ => _.the_quantity_should_be(20), "The quantity should be {0}")
                 .And(_ => _.the_funds_should_be((decimal)(10 - (22.1 * 10) - ((22.1 * 10) * 0.01))), "The funds should be ${0}")
                 .And(_ => _.the_lower_bound_should_be(0), "The Lower Bound should be set to value below market and trail")
                 .And(_ => _.the_max_price_should_be(-1), "the max price should not be set as we have enough stocks on hand for a sell")
                 .And(_ => _.the_safety_bands_should_be(ActionSide.Buy, 10, 11, 12, 13), "the safety bands should be set as stop orders")
                 .BDDfy("if there not enough funds but enough purchase power borrow funds to buy");
         }
+
 
         [Fact]
         //todo: finish this
@@ -360,7 +364,7 @@ namespace Auto_Invest_Test
         //         funding,
         //         0.1M,
         //         0.0001M,
-        //         marginRisk: 10.0M);
+        //         marginSafety: 10.0M);
 
         //     var contractManager = new ContractManager(null);
         //     contractManager.RegisterContract(contract);

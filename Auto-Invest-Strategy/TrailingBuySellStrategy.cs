@@ -234,7 +234,7 @@ namespace Auto_Invest_Strategy
                     // a margin call will be made
                     var price = LowestMaintainablePrice(funds, Contract.MaintenanceMargin, quantity);
 
-                    // We need to include the margin safety to execute earlier to avoid a margin call
+                    // We need to include the margin safety so that it the order executes earlier to avoid a margin call
                     price += contractState.MarginSafety;
 
                     // Placing a stop order ahead of time
@@ -272,11 +272,11 @@ namespace Auto_Invest_Strategy
                     // a margin call will be made
                     var price = HighestMaintainablePrice(funds, Contract.MaintenanceMargin, quantity);
 
-                    // We need to include the margin safety to execute earlier to avoid a margin call
+                    // We need to include the margin safety in order to execute earlier to avoid a margin call
                     price -= contractState.MarginSafety;
 
                     // Placing a stop order ahead of time
-                    await _contractManager.PlaceEmergencySellOrder(new MarketOrder
+                    await _contractManager.PlaceEmergencyBuyOrder(new MarketOrder
                     {
                         PricePerUnit = price,
                         Quantity = batchQty,

@@ -17,12 +17,6 @@
         /// The contract market value is going down and we
         /// are doing a Trailing Buy Stop Order
         /// </summary>
-        BuyRun,
-        /// <summary>
-        /// The contract market value is higher than what can
-        /// be shorted given initial margin requirements and
-        /// we are holding a fixed Stop Limit Order
-        /// </summary>
-        SellCapped
+        BuyRun
     }
 }

@@ -42,7 +42,6 @@ namespace Auto_Invest_Strategy
                 var editor = _contractEditors[details.Symbol];
                 editor.SetUpperBound(details.UpperLimit);
                 editor.SetLowerBound(details.LowerLimit);
-                if (details.MaxSellPrice > 0) editor.SetMaxSellPrice(details.MaxSellPrice);
                 editor.SetRunState(RunState.TriggerRun);
             });
         }
@@ -83,7 +82,7 @@ namespace Auto_Invest_Strategy
         }
 
 
-        public async Task PlaceTrailingSellOrder(SellMarketOrder order)
+        public async Task PlaceTrailingSellOrder(MarketOrder order)
         {
             var contract = _contracts[order.Symbol];
             var editor = _contractEditors[order.Symbol];
@@ -162,41 +161,6 @@ namespace Auto_Invest_Strategy
             });
         }
 
-        public async Task PlaceMaxSellOrder(MarketOrder order)
-        {
-            var contract = _contracts[order.Symbol];
-            var editor = _contractEditors[order.Symbol];
-
-            editor.SetUpperBound(-1);
-            editor.SetLowerBound(-1);
-            editor.SetBuyLimit(-1);
-            editor.SetSellLimit(-1);
-            editor.SetRunState(RunState.SellCapped);
-
-            if (contract.TrailingBuyOrderId > 0)
-            {
-                await _contractClient.CancelOrder(contract.TrailingBuyOrderId);
-                editor.SetTrailingBuyOrderId(-1);
-            }
-
-            if (contract.TrailingSellOrderId > 0)
-            {
-                await _contractClient.CancelOrder(contract.TrailingSellOrderId);
-                editor.SetTrailingSellOrderId(-1);
-            }
-
-            var orderResult = await _contractClient.PlaceStopLimit(new StopLimit
-            {
-                Symbol = order.Symbol,
-                Quantity = order.Quantity,
-                StopPrice = order.PricePerUnit,
-                Side = ActionSide.Sell,
-                OrderId = contract.MaxSellOrderId
-            });
-
-            editor.SetMaxOrderId(orderResult.OrderId);
-        }
-
         public void InitializeContract(TickPosition tick)
         {
             var editor = _contractEditors[tick.Symbol];
@@ -221,7 +185,6 @@ namespace Auto_Invest_Strategy
                 editor.SetMaxOrderId(-1);
             }
 
-            editor.SetMaxSellPrice(-1);
             editor.ResetEmergencyOrders();
         }
 

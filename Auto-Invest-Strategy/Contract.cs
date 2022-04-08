@@ -135,11 +135,6 @@ namespace Auto_Invest_Strategy
         /// </summary>
         public decimal MarginSafety { get; }
 
-        /// <summary>
-        /// The highest possible market price that a short trade can be made
-        /// </summary>
-        public decimal MaxSellPrice { get; private set; }
-
         public void RegisterEditor(IRegisterContractEditor register) => register.RegisterEditor(this, new ContractEditor(this));
 
         private class ContractEditor : IContractEditor
@@ -169,7 +164,6 @@ namespace Auto_Invest_Strategy
 
             public void SetTrailingBuyOrderId(int newValue) => _state.TrailingBuyOrderId = newValue;
             public void SetTrailingSellOrderId(int newValue) => _state.TrailingSellOrderId = newValue;
-            public void SetMaxSellPrice(decimal newValue) => _state.MaxSellPrice = newValue;
             public void ResetEmergencyOrders() => _state._emergencyOrders = new List<EmergencyOrderDetail>();
             public void AddEmergencyOrder(EmergencyOrderDetail detail) => _state._emergencyOrders.Add(detail);
         }

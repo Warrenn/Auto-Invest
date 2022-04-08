@@ -90,9 +90,6 @@ namespace Auto_Invest_Test
 
         public void the_runstate_should_be(RunState runstate) { _contract.RunState.ShouldBe(runstate); }
 
-        public void the_max_stop_limit_should_be_set() =>
-            _stopLimits.ShouldContain(_ => _.Value.Side == ActionSide.Sell && _.Value.StopPrice == _contract.MaxSellPrice);
-
         public void the_trailing_stop_limit_should_be(ActionSide side, decimal stopLimit)
         {
             _stopLimits.ShouldContain(_ => _.Value.Side == side && _.Value.StopPrice == stopLimit);
@@ -100,7 +97,6 @@ namespace Auto_Invest_Test
             else _contract.TrailingBuyOrderId.ShouldBeGreaterThan(0);
         }
 
-        public void the_max_price_should_be(decimal maxPrice) => _contract.MaxSellPrice.ShouldBe(maxPrice);
         public void given_total_cost_of(decimal totalCost) => _totalCost = totalCost;
 
         public async Task when_trades_are(params decimal[] trades)
@@ -198,7 +194,6 @@ namespace Auto_Invest_Test
                 .And(_ => _.the_average_should_be(10), "The Average for the contract should be $10")
                 .And(_ => _.the_runstate_should_be(RunState.SellRun), "The Contract RunState should be SellRun")
                 .And(_ => _.the_trailing_stop_limit_should_be(ActionSide.Sell, 19), "The trailing stop sell limit should be the trail value under market price")
-                .And(_ => _.the_max_price_should_be(199), "the max price should be the highest price that a short can be afforded")
                 .BDDfy("sell should be under market price");
         }
 
@@ -214,7 +209,6 @@ namespace Auto_Invest_Test
                 .And(_ => _.the_average_should_be(10), "The Average for the contract should be ${0}")
                 .And(_ => _.the_runstate_should_be(RunState.BuyRun), "The Contract RunState should be BuyRun")
                 .And(_ => _.the_trailing_stop_limit_should_be(ActionSide.Buy, 6), "The trailing stop by limit should be the trail value over the market price")
-                .And(_ => _.the_max_price_should_be(199), "the max price should be the highest price that a short can be afforded")
                 .BDDfy("buy should be under market price");
         }
 
@@ -231,7 +225,6 @@ namespace Auto_Invest_Test
                 .And(_ => _.the_runstate_should_be(RunState.BuyRun), "The Contract RunState should be BuyRun")
                 .And(_ => _.the_trailing_stop_limit_should_be(ActionSide.Buy, 6), "The trailing stop by limit should be the trail value over the market price")
                 .And(_ => _.the_limit_order_update_should_be_called_more_than_once(ActionSide.Buy, 2), "The limit order needs to be updated at least {0} times")
-                .And(_ => _.the_max_price_should_be(199), "the max price should be the highest price that a short can be afforded")
                 .BDDfy("trailing buy should move with the market price");
         }
 
@@ -248,7 +241,6 @@ namespace Auto_Invest_Test
                 .And(_ => _.the_runstate_should_be(RunState.SellRun), "The Contract RunState should be SellRun")
                 .And(_ => _.the_trailing_stop_limit_should_be(ActionSide.Sell, 29), "The trailing stop by limit should be the trail under the market price")
                 .And(_ => _.the_limit_order_update_should_be_called_more_than_once(ActionSide.Sell, 2), "The limit order needs to be updated at least {0} times")
-                .And(_ => _.the_max_price_should_be(199), "the max price should be the highest price that a short can be afforded")
                 .BDDfy("trailing sell should move with the market price");
         }
 
@@ -269,7 +261,6 @@ namespace Auto_Invest_Test
                 .And(_ => _.there_should_be_no_sell_limit_value())
                 .And(_ => _.the_quantity_should_be(0), "The quantity should be {0}")
                 .And(_ => _.the_funds_should_be((decimal)(1000 + (28.9 * 10) - ((28.9 * 10) * 0.01))), "The funds should be ${0}")
-                .And(_ => _.the_max_price_should_be(256.222M), "the max price should be the highest price that a short can be afforded")
                 .BDDfy("a sell run should trigger a sell order on a reversal");
         }
 
@@ -289,7 +280,6 @@ namespace Auto_Invest_Test
                 .And(_ => _.there_should_be_no_sell_limit_value())
                 .And(_ => _.the_quantity_should_be(10), "The quantity should be {0}")
                 .And(_ => _.the_funds_should_be((decimal)(1000 - (11.1 * 10) - ((11.1 * 10) * 0.01))), "The funds should be ${0}")
-                .And(_ => _.the_max_price_should_be(-1), "the max price should be set as there is enough stock on hand")
                 .BDDfy("a buy run should trigger a buy order on a reversal");
         }
 
@@ -306,7 +296,6 @@ namespace Auto_Invest_Test
                 .Then(_ => _.the_quantity_should_be(20), "The quantity should be {0}")
                 .And(_ => _.the_funds_should_be((decimal)(10 - (22.1 * 10) - ((22.1 * 10) * 0.01))), "The funds should be ${0}")
                 .And(_ => _.the_lower_bound_should_be(0), "The Lower Bound should be set to value below market and trail")
-                .And(_ => _.the_max_price_should_be(-1), "the max price should not be set as we have enough stocks on hand for a sell")
                 .And(_ => _.the_safety_bands_should_be(ActionSide.Buy, 10, 11, 12, 13), "the safety bands should be set as stop orders")
                 .BDDfy("if there not enough funds but enough purchase power borrow funds to buy");
         }

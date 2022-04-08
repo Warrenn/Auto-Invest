@@ -9,7 +9,6 @@
         void SetFunding(decimal newValue);
         void SetUpperBound(decimal newValue);
         void SetLowerBound(decimal newValue);
-        void SetMaxSellPrice(decimal newValue);
         void SetSellLimit(decimal newValue);
         void SetBuyLimit(decimal newValue);
         void SetTrailingBuyOrderId(int newValue);

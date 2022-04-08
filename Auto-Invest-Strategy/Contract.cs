@@ -121,17 +121,12 @@ namespace Auto_Invest_Strategy
         public int TrailingSellOrderId { get; private set; } = -1;
 
         /// <summary>
-        /// The order id of the max sell order
-        /// </summary>
-        public int MaxSellOrderId { get; private set; } = -1;
-
-        /// <summary>
         /// The tracking numbers of the emergency orders
         /// </summary>
         public IEnumerable<EmergencyOrderDetail> EmergencyOrders => _emergencyOrders.AsEnumerable();
 
         /// <summary>
-        /// The the safety amount to offset against a margin price
+        /// The the safety amount to offset against a margin price to avoid a margin call
         /// </summary>
         public decimal MarginSafety { get; }
 
@@ -155,7 +150,6 @@ namespace Auto_Invest_Strategy
             public void SetLowerBound(decimal newValue) => _state.LowerBound = newValue;
             public void SetSellLimit(decimal newValue) => _state.SellOrderLimit = newValue;
             public void SetBuyLimit(decimal newValue) => _state.BuyOrderLimit = newValue;
-            public void SetMaxOrderId(int id) => _state.MaxSellOrderId = id;
             public void RemoveEmergencyOrderId(int orderId)
             {
                 var order = _state.EmergencyOrders.First(_ => _.OrderId == orderId);

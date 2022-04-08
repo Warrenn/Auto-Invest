@@ -15,7 +15,6 @@
         void SetTrailingSellOrderId(int newValue);
         void ResetEmergencyOrders();
         void AddEmergencyOrder(EmergencyOrderDetail detail);
-        void SetMaxOrderId(int id);
         void RemoveEmergencyOrderId(int orderId);
     }
 }

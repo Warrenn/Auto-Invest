@@ -179,12 +179,6 @@ namespace Auto_Invest_Strategy
                 await _contractClient.CancelOrder(detail.OrderId);
             }
 
-            if (contract.MaxSellOrderId > 0)
-            {
-                await _contractClient.CancelOrder(contract.MaxSellOrderId);
-                editor.SetMaxOrderId(-1);
-            }
-
             editor.ResetEmergencyOrders();
         }
 

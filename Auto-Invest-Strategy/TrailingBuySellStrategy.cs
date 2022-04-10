@@ -20,59 +20,36 @@ namespace Auto_Invest_Strategy
         }
 
         /// <summary>
-        /// Workout if there is still liquidity after a sale of stock given the initial margin requirements and
-        /// what the portfolio would be worth at the given price point after the sale
+        /// Workout the amount that is still available to be borrowed at this moment, using the given margin requirements
+        /// and how much has already been borrowed
         /// </summary>
-        /// <param name="funds">Amount of funds on hand at this moment</param>
+        /// <param name="funds">Amount of funds on hand either owed or as cash</param>
         /// <param name="qtyOnHand">Amount of stock on hand at this moment</param>
-        /// <param name="pricePerStock">Price per stock at which the sale will be executed</param>
-        /// <param name="tradeQty">Amount of stock traded in the execution of the sale</param>
-        /// <param name="marginPct">Initial margin percentage</param>
-        /// <returns>Amount still available to be borrowed after the execution of the sale</returns>
-        public static decimal LiquidityAfterSale(
+        /// <param name="pricePerStock">Current price per unit of stock at this moment</param>
+        /// <param name="marginPct">Required margin percentage</param>
+        /// <returns>How much funds are still accessible at this moment</returns>
+        public static decimal BorrowableLiquidity(
             decimal funds,
             decimal qtyOnHand,
             decimal pricePerStock,
-            decimal tradeQty,
             decimal marginPct)
-        {
-            var quantityAfterSale = qtyOnHand - tradeQty;
-            var assetValueAfterSale = pricePerStock * quantityAfterSale;
-            var fundsFromSale = tradeQty * pricePerStock;
-            var equityAfterSale = assetValueAfterSale + fundsFromSale + funds;
-            var purchasePowerAfterSale = equityAfterSale / marginPct;
-            var borrowableAfterSale = (1 - marginPct) * purchasePowerAfterSale;
-            var leftToStillBorrow = borrowableAfterSale + assetValueAfterSale;
-            return leftToStillBorrow;
-        }
+            => (1 - marginPct) * ((qtyOnHand * pricePerStock + funds) / marginPct) + funds;
 
         /// <summary>
-        /// Workout if there is still liquidity after the purchasing of stock given the initial margin requirements and
-        /// what the portfolio would be worth at the given price point after the purchase
+        /// Workout how much is available that can be used to short stock at this moment, using the given margin
+        /// requirements and how much stock has already been shorted
         /// </summary>
         /// <param name="funds">Amount of funds on hand at this moment</param>
-        /// <param name="qtyOnHand">Amount of stock on hand at this moment</param>
-        /// <param name="pricePerStock">Price per stock at which the buy order will be executed</param>
-        /// <param name="tradeQty">Amount of stock purchased in the execution of the order</param>
-        /// <param name="marginPct">Initial margin percentage</param>
-        /// <returns>Amount still available to be borrowed after the execution of the buy order</returns>
-        public static decimal LiquidityAfterBuy(
-        decimal funds,
+        /// <param name="qtyOnHand">Amount of stock on hand or amount of stock shorted</param>
+        /// <param name="pricePerStock">Current price per unit of stock at this moment</param>
+        /// <param name="marginPct">Required margin percentage</param>
+        /// <returns>Amount available to be used to short stock</returns>
+        public static decimal ShortableLiquidity(
+            decimal funds,
             decimal qtyOnHand,
             decimal pricePerStock,
-            decimal tradeQty,
             decimal marginPct)
-        {
-            var quantityAfterBuy = qtyOnHand + tradeQty;
-            var assetValueAfterBuy = pricePerStock * quantityAfterBuy;
-            var purchaseCost = tradeQty * pricePerStock;
-            var fundsAfterBuy = funds - purchaseCost;
-            var equityAfterBuy = assetValueAfterBuy + fundsAfterBuy;
-            var purchasePowerAfterBuy = equityAfterBuy / marginPct;
-            var borrowableAfterBuy = (1 - marginPct) * purchasePowerAfterBuy;
-            var leftToStillBorrow = borrowableAfterBuy + fundsAfterBuy;
-            return leftToStillBorrow;
-        }
+            => (1 - marginPct) * ((qtyOnHand * pricePerStock + funds) / marginPct) + qtyOnHand * pricePerStock;
 
         /// <summary>
         /// Determine if a buy order is still possible at the given price and current contract position
@@ -82,11 +59,12 @@ namespace Auto_Invest_Strategy
         /// <returns>true if the purchase is possible otherwise false</returns>
         public static bool PurchasePossible(decimal price, Contract contract)
         {
-            var purchaseCost = price * contract.TradeQty;
-            if (contract.Funding > purchaseCost) return true;
-            var fundsAfterPurchase = LiquidityAfterBuy(contract.Funding, contract.QuantityOnHand, price,
-                contract.TradeQty, Contract.InitialMargin);
-            return fundsAfterPurchase > 0;
+            var cost = price * contract.TradeQty;
+            if (contract.Funding > cost) return true;
+            var liquidity =
+                BorrowableLiquidity(contract.Funding, contract.QuantityOnHand, price, Contract.InitialMargin);
+            
+            return liquidity >= cost;
         }
 
         /// <summary>
@@ -98,9 +76,11 @@ namespace Auto_Invest_Strategy
         public static bool SalePossible(decimal price, Contract contract)
         {
             if (contract.QuantityOnHand > contract.TradeQty) return true;
-            var fundsAfterSale = LiquidityAfterSale(contract.Funding, contract.QuantityOnHand, price, contract.TradeQty,
-                Contract.InitialMargin);
-            return fundsAfterSale > 0;
+            var cost = price * contract.TradeQty;
+            var liquidity =
+                ShortableLiquidity(contract.Funding, contract.QuantityOnHand, price, Contract.InitialMargin);
+
+            return liquidity >= cost;
         }
 
         /// <summary>

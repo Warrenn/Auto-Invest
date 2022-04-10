@@ -139,9 +139,9 @@ namespace Auto_Invest_Test
                 {
                     if (limit.StopPrice < min || limit.StopPrice > max) continue;
                     var slippage = limit.Side == ActionSide.Sell ? -0.1M : 0.1M;
-                    var price = limit.StopPrice;//+ slippage;
+                    var price = limit.StopPrice + slippage;
                     var orderCost = price * limit.Quantity;
-                    var commission = 0;//Max(1M, orderCost * 0.01M);
+                    var commission = Max(1M, limit.Quantity * 0.02M);
 
                     await orderCompletion?.OrderCompleted(new CompletedOrder
                     {
@@ -287,14 +287,14 @@ namespace Auto_Invest_Test
         public void borrow_when_funds_are_insufficient()
         {
             this
-                .Given(_ => _.given_funds_of(0), "Given funds of ${0}")
+                .Given(_ => _.given_funds_of(100), "Given funds of ${0}")
                 .And(_ => _.given_trailing_of(1), "And a trail of ${0}")
                 .And(_ => _.given_total_cost_of(30 * 4))
                 .And(_ => _.given_trade_qty_of(10))
-                .And(_ => _.given_initial_amount_of(4))
-                .When(_ => _.when_trades_are(30, 25, 20, 22), "When the market values runs down and then suddenly reverses up")
-                .Then(_ => _.the_quantity_should_be(20), "The quantity should be {0}")
-                .And(_ => _.the_funds_should_be((decimal)(10 - (22.1 * 10) - ((22.1 * 10) * 0.01))), "The funds should be ${0}")
+                .And(_ => _.given_initial_amount_of(1))
+                .When(_ => _.when_trades_are(30, 25, 19, 22), "When the market values runs down and then suddenly reverses up")
+                .Then(_ => _.the_quantity_should_be(10), "The quantity should be {0}")
+                .And(_ => _.the_funds_should_be(100M - (20.1M * 10M) - 1M), "The funds should be ${0}")
                 .And(_ => _.the_lower_bound_should_be(0), "The Lower Bound should be set to value below market and trail")
                 .And(_ => _.the_safety_bands_should_be(ActionSide.Buy, 10, 11, 12, 13), "the safety bands should be set as stop orders")
                 .BDDfy("if there not enough funds but enough purchase power borrow funds to buy");

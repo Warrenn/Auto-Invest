@@ -28,18 +28,17 @@ namespace Auto_Invest_Test
         SoThat = "I can have automatic trades")]
     public class TestContractManagement
     {
-        const string SYMBOL = "SYMBOL";
+        private const string SYMBOL = "SYMBOL";
         private decimal _funds = 1000;
         private decimal _tradeQty = 10;
         private decimal _initialAmount;
-        private uint _bands = 10;
+        private uint _safetyBands = 10;
         private decimal _trailing = 1;
         private Contract _contract;
         private readonly Mock<IContractClient> _contractClientMock = new();
         private ContractManager _manager;
         private TrailingBuySellStrategy _strategy;
         private Dictionary<int, StopLimit> _stopLimits;
-        private decimal _totalCost;
 
         public TestContractManagement()
         {
@@ -55,6 +54,9 @@ namespace Auto_Invest_Test
                 l.OrderId == orderId)), Times.AtLeast(times));
         }
 
+        public void the_limit_order_should_not_be_called() =>
+            _contractClientMock.Verify(_ => _.PlaceStopLimit(It.IsAny<StopLimit>()), Times.Never);
+
         public void the_funds_should_be(decimal funds) => _contract.Funding.ShouldBe(funds);
 
         public void the_quantity_should_be(decimal amount) => _contract.QuantityOnHand.ShouldBe(amount);
@@ -66,9 +68,13 @@ namespace Auto_Invest_Test
         public void the_safety_bands_should_be(ActionSide side, params decimal[] bands)
         {
             _contract.EmergencyOrders.Count().ShouldBe(bands.Length);
+
+            _contract.EmergencyOrders.ShouldAllBe(_ => _.Action == side);
+            var prices = _contract.EmergencyOrders.Select(_ => Math.Round(_.PricePerUnit, 2)).ToArray();
+
             foreach (var band in bands)
             {
-                _contract.EmergencyOrders.ShouldContain(_ => _.Action == side && _.PricePerUnit == band);
+                prices.ShouldContain(band);
             }
         }
 
@@ -77,8 +83,6 @@ namespace Auto_Invest_Test
         public void given_trade_qty_of(decimal amount) { _tradeQty = amount; }
 
         public void given_initial_amount_of(decimal amount) { _initialAmount = amount; }
-
-        public void given_layers_of(uint amount) { _bands = amount; }
 
         public void given_trailing_of(decimal trailing) { _trailing = trailing; }
 
@@ -90,6 +94,10 @@ namespace Auto_Invest_Test
 
         public void the_runstate_should_be(RunState runstate) { _contract.RunState.ShouldBe(runstate); }
 
+        public void there_should_be_no_safety_bands() => _stopLimits.ShouldBeEmpty();
+
+        public void the_sell_limit_should_be(decimal sellLimit) => _contract.SellOrderLimit.ShouldBe(sellLimit);
+
         public void the_trailing_stop_limit_should_be(ActionSide side, decimal stopLimit)
         {
             _stopLimits.ShouldContain(_ => _.Value.Side == side && _.Value.StopPrice == stopLimit);
@@ -97,7 +105,7 @@ namespace Auto_Invest_Test
             else _contract.TrailingBuyOrderId.ShouldBeGreaterThan(0);
         }
 
-        public void given_total_cost_of(decimal totalCost) => _totalCost = totalCost;
+        public void given_safety_bands_of(uint safetyBands) => _safetyBands = safetyBands;
 
         public async Task when_trades_are(params decimal[] trades)
         {
@@ -105,7 +113,7 @@ namespace Auto_Invest_Test
             var orderId = 1;
             _stopLimits = new Dictionary<int, StopLimit>();
 
-            _contract = new Contract(SYMBOL, _funds, _tradeQty, _trailing, _bands, _initialAmount, marginSafety: 1, totalCost: _totalCost);
+            _contract = new Contract(SYMBOL, _funds, _tradeQty, _trailing, _initialAmount, safetyBands: _safetyBands, marginSafety: 1);
             _contractClientMock
                 .Setup(_ => _.ListenForCompletion(SYMBOL, It.IsAny<IOrderCompletion>()))
                 .Callback((string s, IOrderCompletion o) => { orderCompletion = o; });
@@ -134,8 +142,9 @@ namespace Auto_Invest_Test
             {
                 var min = Min(trade, previousTrade);
                 var max = Max(trade, previousTrade);
+                var limits = _stopLimits.Values.ToArray();
 
-                foreach (var limit in _stopLimits.Values)
+                foreach (var limit in limits)
                 {
                     if (limit.StopPrice < min || limit.StopPrice > max) continue;
                     var slippage = limit.Side == ActionSide.Sell ? -0.1M : 0.1M;
@@ -260,7 +269,7 @@ namespace Auto_Invest_Test
                 .And(_ => _.there_should_be_no_buy_limit_value())
                 .And(_ => _.there_should_be_no_sell_limit_value())
                 .And(_ => _.the_quantity_should_be(0), "The quantity should be {0}")
-                .And(_ => _.the_funds_should_be((decimal)(1000 + (28.9 * 10) - ((28.9 * 10) * 0.01))), "The funds should be ${0}")
+                .And(_ => _.the_funds_should_be((decimal)(1000 + (28.9 * 10) - 1)), "The funds should be ${0}")
                 .BDDfy("a sell run should trigger a sell order on a reversal");
         }
 
@@ -279,7 +288,7 @@ namespace Auto_Invest_Test
                 .And(_ => _.there_should_be_no_buy_limit_value())
                 .And(_ => _.there_should_be_no_sell_limit_value())
                 .And(_ => _.the_quantity_should_be(10), "The quantity should be {0}")
-                .And(_ => _.the_funds_should_be((decimal)(1000 - (11.1 * 10) - ((11.1 * 10) * 0.01))), "The funds should be ${0}")
+                .And(_ => _.the_funds_should_be((decimal)(1000 - (11.1 * 10) - 1)), "The funds should be ${0}")
                 .BDDfy("a buy run should trigger a buy order on a reversal");
         }
 
@@ -288,52 +297,93 @@ namespace Auto_Invest_Test
         {
             this
                 .Given(_ => _.given_funds_of(100), "Given funds of ${0}")
-                .And(_ => _.given_trailing_of(1), "And a trail of ${0}")
-                .And(_ => _.given_total_cost_of(30 * 4))
+                .And(_ => _.given_trailing_of(1), "And a trail of $S{0}")
                 .And(_ => _.given_trade_qty_of(10))
                 .And(_ => _.given_initial_amount_of(1))
-                .When(_ => _.when_trades_are(30, 25, 19, 22), "When the market values runs down and then suddenly reverses up")
-                .Then(_ => _.the_quantity_should_be(10), "The quantity should be {0}")
+                .When(_ => _.when_trades_are(30, 25, 19, 22),
+                    "When the market values runs down and then suddenly reverses up")
+                .Then(_ => _.the_quantity_should_be(11), "The quantity should be {0}")
                 .And(_ => _.the_funds_should_be(100M - (20.1M * 10M) - 1M), "The funds should be ${0}")
-                .And(_ => _.the_lower_bound_should_be(0), "The Lower Bound should be set to value below market and trail")
-                .And(_ => _.the_safety_bands_should_be(ActionSide.Buy, 10, 11, 12, 13), "the safety bands should be set as stop orders")
+                .And(_ => _.the_safety_bands_should_be(ActionSide.Sell, 14.25M
+                    , 13.46M
+                    , 12.61M
+                    , 11.70M
+                    , 10.69M
+                    , 9.58M
+                    , 8.30M
+                    , 6.78M
+                    , 4.83M
+                    , 1.76M), "the safety bands should be set as stop orders")
                 .BDDfy("if there not enough funds but enough purchase power borrow funds to buy");
         }
 
 
         [Fact]
-        //todo: finish this
         public void do_not_borrow_when_purchase_power_is_insufficient()
         {
-            throw new NotImplementedException();
+            this
+                .Given(_ => _.given_funds_of(100), "Given funds of ${0}")
+                .And(_ => _.given_trade_qty_of(10))
+                .And(_ => _.given_trailing_of(1), "And a trail of ${0}")
+                .And(_ => _.given_safety_bands_of(10))
+                .And(_ => _.given_initial_amount_of(1))
+                .When(_ => _.when_trades_are(30, 25, 27, 22),
+                    "When the market values runs down and then suddenly reverses up")
+                .Then(_ => _.the_quantity_should_be(1), "The quantity should be the same {0}")
+                .And(_ => _.the_funds_should_be(100), "The funds should be the same ${0}")
+                .And(_ => _.there_should_be_no_safety_bands(), "the safety bands should not be set")
+                .And(_ => _.the_lower_bound_should_be(29))
+                .And(_ => _.the_upper_bound_should_be(31))
+                .And(_ => _.there_should_be_no_buy_limit_value())
+                .And(_ => _.there_should_be_no_sell_limit_value())
+                .And(_ => _.the_runstate_should_be(RunState.TriggerRun), "the contract state should still be in a trigger run")
+                .And(_ => _.the_limit_order_should_not_be_called())
+                .BDDfy("if there not enough funds and not enough purchase power don't do the trade");
         }
 
+
         [Fact]
-        //todo: finish this
         public void short_stock_when_there_is_not_enough_stock_on_hand()
         {
-            throw new NotImplementedException();
+            this
+                .Given(_ => _.given_funds_of(100), "Given funds of ${0}")
+                .And(_ => _.given_trade_qty_of(10))
+                .And(_ => _.given_trailing_of(1), "And a trail of ${0}")
+                .And(_ => _.given_initial_amount_of(5))
+                .When(_ => _.when_trades_are(15, 18, 21, 18),
+                    "When the market values go up and suddenly reverse")
+                .Then(_ => _.the_quantity_should_be(-5), "The quantity should be {0}")
+                .And(_ => _.the_funds_should_be(100M + (19.9M * 10M) - 1M), "The funds should be ${0}")
+                .And(_ => _.the_safety_bands_should_be(ActionSide.Buy, 40.72M,
+                    42.19M,
+                    43.9M,
+                    45.92M,
+                    48.38M,
+                    51.49M,
+                    55.60M,
+                    61.49M,
+                    71.21M,
+                    93.58M), "the safety bands should be set as stop orders")
+                .BDDfy("if there not enough stock on hand sort the stock");
         }
 
         [Fact]
-        //todo: finish this
         public void do_not_short_stock_when_there_is_not_enough_purchase_power()
         {
-            throw new NotImplementedException();
-        }
-
-        [Fact]
-        //todo: finish this
-        public void set_the_max_stop_limit_when_market_price_is_too_high()
-        {
-            throw new NotImplementedException();
-        }
-
-        [Fact]
-        //todo: finish this
-        public void recover_from_trading_on_margin()
-        {
-            throw new NotImplementedException();
+            this
+                .Given(_ => _.given_funds_of(100), "Given funds of ${0}")
+                .And(_ => _.given_trade_qty_of(10))
+                .And(_ => _.given_trailing_of(1), "And a trail of ${0}")
+                .And(_ => _.given_initial_amount_of(3))
+                .When(_ => _.when_trades_are(15, 18, 32, 30),
+                    "When the market values go up and suddenly reverse")
+                .Then(_ => _.the_quantity_should_be(3), "The quantity should be {0}")
+                .And(_ => _.there_should_be_no_buy_limit_value())
+                .And(_ => _.the_sell_limit_should_be(17))
+                .And(_ => _.the_runstate_should_be(RunState.SellRun),
+                    "the contract state should still be in a sell run")
+                .And(_ => _.the_funds_should_be(100M), "The funds should be ${0}")
+                .BDDfy("do not short stock if there is not enough purchase power");
         }
         //public void GetTheCorrectMaxSellingPrice()
         //{

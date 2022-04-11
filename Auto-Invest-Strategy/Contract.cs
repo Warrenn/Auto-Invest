@@ -15,11 +15,10 @@ namespace Auto_Invest_Strategy
             decimal funding,
             decimal tradeQuantity,
             decimal trailingOffset,
-            uint safetyBands = 10,
             decimal initialQuantity = 0,
-            decimal marginSafety = 0,
             decimal averagePrice = 0,
-            decimal totalCost = 0)
+            uint safetyBands = 10,
+            decimal marginSafety = 0)
         {
             if (string.IsNullOrWhiteSpace(symbol)) throw new ArgumentNullException(nameof(symbol));
             if (funding == 0 && initialQuantity == 0) throw new ArgumentException($"{nameof(funding)} and {nameof(initialQuantity)} cannot both be 0", nameof(funding));
@@ -30,7 +29,6 @@ namespace Auto_Invest_Strategy
             SafetyBands = safetyBands;
             QuantityOnHand = initialQuantity;
             TrailingOffset = trailingOffset;
-            TotalCost = totalCost;
             MarginSafety = Math.Abs(marginSafety);
             TradeQty = Math.Abs(tradeQuantity);
             AveragePrice = Math.Abs(averagePrice);
@@ -38,6 +36,8 @@ namespace Auto_Invest_Strategy
             if (TrailingOffset < 0) TrailingOffset = 0;
             if (MarginSafety < 0) MarginSafety = TrailingOffset;
             if (SafetyBands == 0) SafetyBands = 1;
+            if (AveragePrice > 0 && QuantityOnHand > 0) TotalCost = QuantityOnHand * averagePrice;
+
         }
 
         /// <summary>
@@ -98,12 +98,12 @@ namespace Auto_Invest_Strategy
         /// <summary>
         /// The price limit of the market that will trigger a sell order. Determined by using the offset against the market price.
         /// </summary>
-        public decimal SellOrderLimit { get; private set; }
+        public decimal SellOrderLimit { get; private set; } = -1;
 
         /// <summary>
         /// The price limit of the market that will trigger a buy order. Determined by using the offset against the market price.
         /// </summary>
-        public decimal BuyOrderLimit { get; private set; }
+        public decimal BuyOrderLimit { get; private set; } = -1;
 
         /// <summary>
         /// The amount of stock to sell or buy when the sell or buy order is triggered.

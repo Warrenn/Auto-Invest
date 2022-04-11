@@ -37,13 +37,11 @@ namespace Auto_Invest_Strategy
 
         public async Task CreateTrigger(TriggerDetails details)
         {
-            await Task.Run(() =>
-            {
-                var editor = _contractEditors[details.Symbol];
-                editor.SetUpperBound(details.UpperLimit);
-                editor.SetLowerBound(details.LowerLimit);
-                editor.SetRunState(RunState.TriggerRun);
-            });
+            var editor = _contractEditors[details.Symbol];
+            editor.SetUpperBound(details.UpperLimit);
+            editor.SetLowerBound(details.LowerLimit);
+            editor.SetRunState(RunState.TriggerRun);
+            await Task.Run(() => { });
         }
 
         public async Task<decimal> GetContractsAverageValue(string symbol)
@@ -186,7 +184,7 @@ namespace Auto_Invest_Strategy
 
         #region Implementation of IBuySaleLogic
 
-        public async Task TrailingBuyComplete(ActionDetails details) => await Task.Run(() =>
+        public async Task TrailingBuyComplete(ActionDetails details)
         {
             var contract = _contracts[details.Symbol];
             var editor = _contractEditors[details.Symbol];
@@ -195,7 +193,8 @@ namespace Auto_Invest_Strategy
             editor.SetBuyLimit(-1);
 
             BuyComplete(details, contract, editor);
-        });
+            await Task.Run(() => { });
+        }
 
         private static void BuyComplete(ActionDetails details, Contract contract, IContractEditor editor)
         {
@@ -217,14 +216,15 @@ namespace Auto_Invest_Strategy
 
             if (newQuantity < 0)
             {
-                newTotalCost = originalCost + contract.AveragePrice * details.Qty;
+                var average = originalQty == 0 ? details.PricePerUnit : contract.AveragePrice;
+                newTotalCost = originalCost + average * details.Qty;
                 editor.SetTotalCost(newTotalCost);
             }
 
             editor.SetAveragePrice(Math.Abs(newTotalCost / newQuantity));
         }
 
-        public async Task TrailingSellComplete(ActionDetails details) => await Task.Run(() =>
+        public async Task TrailingSellComplete(ActionDetails details)
         {
             var contract = _contracts[details.Symbol];
             var editor = _contractEditors[details.Symbol];
@@ -233,7 +233,8 @@ namespace Auto_Invest_Strategy
             editor.SetSellLimit(-1);
 
             SellComplete(details, contract, editor);
-        });
+            await Task.Run(() => { });
+        }
 
         private static void SellComplete(ActionDetails details, Contract contract, IContractEditor editor)
         {
@@ -245,6 +246,8 @@ namespace Auto_Invest_Strategy
             editor.SetFunding(contract.Funding + details.CostOfOrder - details.Commission);
             editor.SetQuantity(newQuantity);
             editor.SetTotalCost(newTotalCost);
+
+            if (originalQty == 0) editor.SetAveragePrice(details.PricePerUnit);
 
             if (newQuantity > 0) return;
 

@@ -263,7 +263,7 @@ namespace Auto_Invest_Strategy
             editor.SetAveragePrice(Math.Abs(newTotalCost / newQuantity));
         }
 
-        public async Task EmergencyActionComplete(EmergencyActionDetails details) => await Task.Run(() =>
+        public async Task EmergencyActionComplete(EmergencyActionDetails details)
         {
             var editor = _contractEditors[details.Symbol];
             var contract = _contracts[details.Symbol];
@@ -278,7 +278,8 @@ namespace Auto_Invest_Strategy
             }
 
             editor.RemoveEmergencyOrderId(details.OrderId);
-        });
+            await Task.Run(() => { });
+        }
 
         #endregion
 

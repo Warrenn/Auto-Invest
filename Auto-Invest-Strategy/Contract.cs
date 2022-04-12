@@ -13,12 +13,12 @@ namespace Auto_Invest_Strategy
         public Contract(
             string symbol,
             decimal funding,
-            decimal tradeQuantity,
             decimal trailingOffset,
+            decimal tradePercentage = 0.02M,
             decimal initialQuantity = 0,
             decimal averagePrice = 0,
             uint safetyBands = 10,
-            decimal marginSafety = 0)
+            decimal marginProtection = 0)
         {
             if (string.IsNullOrWhiteSpace(symbol)) throw new ArgumentNullException(nameof(symbol));
             if (funding == 0 && initialQuantity == 0) throw new ArgumentException($"{nameof(funding)} and {nameof(initialQuantity)} cannot both be 0", nameof(funding));
@@ -29,14 +29,15 @@ namespace Auto_Invest_Strategy
             SafetyBands = safetyBands;
             QuantityOnHand = initialQuantity;
             TrailingOffset = trailingOffset;
-            MarginSafety = Math.Abs(marginSafety);
-            TradeQty = Math.Abs(tradeQuantity);
+            MarginProtection = Math.Abs(marginProtection);
+            TradePercent = Math.Abs(tradePercentage % 1);
             AveragePrice = Math.Abs(averagePrice);
 
             if (TrailingOffset < 0) TrailingOffset = 0;
-            if (MarginSafety < 0) MarginSafety = TrailingOffset;
+            if (MarginProtection < 0) MarginProtection = TrailingOffset;
             if (SafetyBands == 0) SafetyBands = 1;
-            if (AveragePrice > 0 && QuantityOnHand > 0) TotalCost = QuantityOnHand * averagePrice;
+            if (TradePercent == 0) TradePercent = 1;
+            if (AveragePrice > 0 && QuantityOnHand > 0) TotalCost = QuantityOnHand * AveragePrice;
 
         }
 
@@ -108,7 +109,7 @@ namespace Auto_Invest_Strategy
         /// <summary>
         /// The amount of stock to sell or buy when the sell or buy order is triggered.
         /// </summary>
-        public decimal TradeQty { get; }
+        public decimal TradePercent { get; }
 
         /// <summary>
         /// The tracking number of the order placed for a buy order
@@ -128,7 +129,7 @@ namespace Auto_Invest_Strategy
         /// <summary>
         /// The the safety amount to offset against a margin price to avoid a margin call
         /// </summary>
-        public decimal MarginSafety { get; }
+        public decimal MarginProtection { get; }
 
         public void RegisterEditor(IRegisterContractEditor register) => register.RegisterEditor(this, new ContractEditor(this));
 

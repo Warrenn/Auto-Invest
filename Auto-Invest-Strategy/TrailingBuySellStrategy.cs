@@ -33,7 +33,7 @@ namespace Auto_Invest_Strategy
             decimal qtyOnHand,
             decimal pricePerStock,
             decimal marginPct)
-            => (1 - marginPct) * ((qtyOnHand * pricePerStock + funds) / marginPct) + funds;
+            => (1 - marginPct) * ((qtyOnHand * pricePerStock + funds) / marginPct) + (funds < 0 ? funds : 0);
 
         /// <summary>
         /// Workout how much is available that can be used to short stock at this moment, using the given margin
@@ -49,39 +49,8 @@ namespace Auto_Invest_Strategy
             decimal qtyOnHand,
             decimal pricePerStock,
             decimal marginPct)
-            => (1 - marginPct) * ((qtyOnHand * pricePerStock + funds) / marginPct) + qtyOnHand * pricePerStock;
-
-        /// <summary>
-        /// Determine if a buy order is still possible at the given price and current contract position
-        /// </summary>
-        /// <param name="price">Price to purchase stock at</param>
-        /// <param name="contract">Portfolio's position and contract info</param>
-        /// <returns>true if the purchase is possible otherwise false</returns>
-        public static bool PurchasePossible(decimal price, Contract contract)
-        {
-            var cost = price * contract.TradeQty;
-            if (contract.Funding > cost) return true;
-            var liquidity =
-                BorrowableLiquidity(contract.Funding, contract.QuantityOnHand, price, Contract.InitialMargin);
-            
-            return liquidity >= cost;
-        }
-
-        /// <summary>
-        /// Determine if a sale order is still possible at the given price and current contract position
-        /// </summary>
-        /// <param name="price">Price to sell stock at</param>
-        /// <param name="contract">Portfolio's position and contract info</param>
-        /// <returns>true if the purchase is possible otherwise false</returns>
-        public static bool SalePossible(decimal price, Contract contract)
-        {
-            if (contract.QuantityOnHand > contract.TradeQty) return true;
-            var cost = price * contract.TradeQty;
-            var liquidity =
-                ShortableLiquidity(contract.Funding, contract.QuantityOnHand, price, Contract.InitialMargin);
-
-            return liquidity >= cost;
-        }
+            => (1 - marginPct) * ((qtyOnHand * pricePerStock + funds) / marginPct) +
+               (qtyOnHand < 0 ? qtyOnHand * pricePerStock : 0);
 
         /// <summary>
         /// The highest market price that we can hold the position at, above which a margin call will be made.
@@ -123,11 +92,17 @@ namespace Auto_Invest_Strategy
             {
                 var limit = UpperLimit(tick.Position, contractState.TrailingOffset);
                 if (limit > contractState.BuyOrderLimit) return;
-                if (!PurchasePossible(limit, contractState)) return;
+
+                var liquidity = BorrowableLiquidity(contractState.Funding, contractState.QuantityOnHand, limit,
+                    Contract.InitialMargin);
+
+                var tradeSize = (liquidity * contractState.TradePercent) / limit;
+
+                if (tradeSize <= 0) return;
 
                 await _contractManager.PlaceTrailingBuyOrder(new MarketOrder
                 {
-                    Quantity = contractState.TradeQty,
+                    Quantity = tradeSize,
                     Symbol = tick.Symbol,
                     PricePerUnit = limit
                 });
@@ -139,12 +114,18 @@ namespace Auto_Invest_Strategy
             {
                 var limit = LowerLimit(tick.Position, contractState.TrailingOffset);
                 if (limit < contractState.SellOrderLimit) return;
-                if (!SalePossible(limit, contractState)) return;
+
+                var liquidity = ShortableLiquidity(contractState.Funding, contractState.QuantityOnHand, limit,
+                    Contract.InitialMargin);
+
+                var tradeSize = (liquidity * contractState.TradePercent) / limit;
+
+                if (tradeSize <= 0) return;
 
                 await _contractManager.PlaceTrailingSellOrder(new MarketOrder
                 {
                     Symbol = tick.Symbol,
-                    Quantity = contractState.TradeQty,
+                    Quantity = tradeSize,
                     PricePerUnit = limit
                 });
 
@@ -156,11 +137,17 @@ namespace Auto_Invest_Strategy
             {
                 var limit = LowerLimit(tick.Position, contractState.TrailingOffset);
                 if (limit < contractState.AveragePrice) limit = contractState.AveragePrice;
-                if (!SalePossible(limit, contractState)) return;
+
+                var liquidity = ShortableLiquidity(contractState.Funding, contractState.QuantityOnHand, limit,
+                    Contract.InitialMargin);
+
+                var tradeSize = (liquidity * contractState.TradePercent) / limit;
+
+                if (tradeSize <= 0) return;
 
                 await _contractManager.PlaceTrailingSellOrder(new MarketOrder
                 {
-                    Quantity = contractState.TradeQty,
+                    Quantity = tradeSize,
                     Symbol = tick.Symbol,
                     PricePerUnit = limit
                 });
@@ -172,11 +159,17 @@ namespace Auto_Invest_Strategy
             {
                 var limit = UpperLimit(tick.Position, contractState.TrailingOffset);
                 if (limit > contractState.AveragePrice) limit = contractState.AveragePrice;
-                if (!PurchasePossible(limit, contractState)) return;
+
+                var liquidity = BorrowableLiquidity(contractState.Funding, contractState.QuantityOnHand, limit,
+                    Contract.InitialMargin);
+
+                var tradeSize = (liquidity * contractState.TradePercent) / limit;
+
+                if (tradeSize <= 0) return;
 
                 await _contractManager.PlaceTrailingBuyOrder(new MarketOrder
                 {
-                    Quantity = contractState.TradeQty,
+                    Quantity = tradeSize,
                     Symbol = tick.Symbol,
                     PricePerUnit = limit
                 });
@@ -211,6 +204,7 @@ namespace Auto_Invest_Strategy
                 var batchQty = Math.Abs(contractState.QuantityOnHand) / contractState.SafetyBands;
                 var funds = contractState.Funding;
                 var quantity = contractState.QuantityOnHand;
+                await _contractManager.ClearEmergencyOrders(symbol);
 
                 for (var i = 0; i < contractState.SafetyBands; i++)
                 {
@@ -219,7 +213,7 @@ namespace Auto_Invest_Strategy
                     var price = LowestMaintainablePrice(funds, Contract.MaintenanceMargin, quantity);
 
                     // We need to include the margin safety so that it the order executes earlier to avoid a margin call
-                    price += contractState.MarginSafety;
+                    price += contractState.MarginProtection;
 
                     // Placing a stop order ahead of time
                     await _contractManager.PlaceEmergencySellOrder(new MarketOrder
@@ -249,6 +243,7 @@ namespace Auto_Invest_Strategy
                 var batchQty = Math.Abs(contractState.QuantityOnHand) / contractState.SafetyBands;
                 var funds = contractState.Funding;
                 var quantity = contractState.QuantityOnHand;
+                await _contractManager.ClearEmergencyOrders(symbol);
 
                 for (var i = 0; i < contractState.SafetyBands; i++)
                 {
@@ -257,7 +252,7 @@ namespace Auto_Invest_Strategy
                     var price = HighestMaintainablePrice(funds, Contract.MaintenanceMargin, quantity);
 
                     // We need to include the margin safety in order to execute earlier to avoid a margin call
-                    price -= contractState.MarginSafety;
+                    price -= contractState.MarginProtection;
 
                     // Placing a stop order ahead of time
                     await _contractManager.PlaceEmergencyBuyOrder(new MarketOrder

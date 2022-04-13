@@ -18,7 +18,8 @@ namespace Auto_Invest_Strategy
             decimal initialQuantity = 0,
             decimal averagePrice = 0,
             uint safetyBands = 10,
-            decimal marginProtection = 0)
+            decimal marginProtection = 0,
+            decimal profitPercentage = 1)
         {
             if (string.IsNullOrWhiteSpace(symbol)) throw new ArgumentNullException(nameof(symbol));
             if (funding == 0 && initialQuantity == 0) throw new ArgumentException($"{nameof(funding)} and {nameof(initialQuantity)} cannot both be 0", nameof(funding));
@@ -32,13 +33,14 @@ namespace Auto_Invest_Strategy
             MarginProtection = Math.Abs(marginProtection);
             TradePercent = Math.Abs(tradePercentage % 1);
             AveragePrice = Math.Abs(averagePrice);
+            ProfitPercentage = Math.Abs(profitPercentage % 1);
 
             if (TrailingOffset < 0) TrailingOffset = 0;
             if (MarginProtection < 0) MarginProtection = TrailingOffset;
             if (SafetyBands == 0) SafetyBands = 1;
             if (TradePercent == 0) TradePercent = 1;
             if (AveragePrice > 0 && QuantityOnHand > 0) TotalCost = QuantityOnHand * AveragePrice;
-
+            if (ProfitPercentage == 0) ProfitPercentage = 1;
         }
 
         /// <summary>
@@ -56,6 +58,11 @@ namespace Auto_Invest_Strategy
         /// The average price of the stock held on hand at this moment or the average price of the stock owed at this moment
         /// </summary>
         public decimal AveragePrice { get; private set; }
+
+        /// <summary>
+        /// The minimum percentage profit to take on each trade if the profit is less than this the trade is declined
+        /// </summary>
+        public decimal ProfitPercentage { get; }
 
         /// <summary>
         /// The aggregated total cost of the stock on hand at this moment or the total aggregated cost of the stock that is owed

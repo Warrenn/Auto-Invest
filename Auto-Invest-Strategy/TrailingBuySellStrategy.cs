@@ -92,21 +92,7 @@ namespace Auto_Invest_Strategy
             {
                 var limit = UpperLimit(tick.Position, contractState.TrailingOffset);
                 if (limit > contractState.BuyOrderLimit) return;
-
-                var liquidity = BorrowableLiquidity(contractState.Funding, contractState.QuantityOnHand, limit,
-                    Contract.InitialMargin);
-
-                var tradeSize = (liquidity * contractState.TradePercent) / limit;
-
-                if (tradeSize <= 0) return;
-
-                await _contractManager.PlaceTrailingBuyOrder(new MarketOrder
-                {
-                    Quantity = tradeSize,
-                    Symbol = tick.Symbol,
-                    PricePerUnit = limit
-                });
-
+                await PlaceOrder(limit, BorrowableLiquidity, _contractManager.PlaceTrailingBuyOrder);
                 return;
             }
 
@@ -114,21 +100,7 @@ namespace Auto_Invest_Strategy
             {
                 var limit = LowerLimit(tick.Position, contractState.TrailingOffset);
                 if (limit < contractState.SellOrderLimit) return;
-
-                var liquidity = ShortableLiquidity(contractState.Funding, contractState.QuantityOnHand, limit,
-                    Contract.InitialMargin);
-
-                var tradeSize = (liquidity * contractState.TradePercent) / limit;
-
-                if (tradeSize <= 0) return;
-
-                await _contractManager.PlaceTrailingSellOrder(new MarketOrder
-                {
-                    Symbol = tick.Symbol,
-                    Quantity = tradeSize,
-                    PricePerUnit = limit
-                });
-
+                await PlaceOrder(limit, ShortableLiquidity, _contractManager.PlaceTrailingSellOrder);
                 return;
             }
 
@@ -137,20 +109,7 @@ namespace Auto_Invest_Strategy
             {
                 var limit = LowerLimit(tick.Position, contractState.TrailingOffset);
                 if (limit < contractState.AveragePrice) limit = contractState.AveragePrice;
-
-                var liquidity = ShortableLiquidity(contractState.Funding, contractState.QuantityOnHand, limit,
-                    Contract.InitialMargin);
-
-                var tradeSize = (liquidity * contractState.TradePercent) / limit;
-
-                if (tradeSize <= 0) return;
-
-                await _contractManager.PlaceTrailingSellOrder(new MarketOrder
-                {
-                    Quantity = tradeSize,
-                    Symbol = tick.Symbol,
-                    PricePerUnit = limit
-                });
+                await PlaceOrder(limit, ShortableLiquidity, _contractManager.PlaceTrailingSellOrder);
                 return;
             }
 
@@ -159,15 +118,22 @@ namespace Auto_Invest_Strategy
             {
                 var limit = UpperLimit(tick.Position, contractState.TrailingOffset);
                 if (limit > contractState.AveragePrice) limit = contractState.AveragePrice;
+                await PlaceOrder(limit, BorrowableLiquidity, _contractManager.PlaceTrailingBuyOrder);
+            }
 
-                var liquidity = BorrowableLiquidity(contractState.Funding, contractState.QuantityOnHand, limit,
+            async Task PlaceOrder(decimal limit, Func<decimal, decimal, decimal, decimal, decimal> calculateLiquidity, Func<MarketOrder, Task> placeOrder)
+            {
+                var liquidity = calculateLiquidity(
+                    contractState.Funding,
+                    contractState.QuantityOnHand,
+                    limit,
                     Contract.InitialMargin);
 
                 var tradeSize = (liquidity * contractState.TradePercent) / limit;
 
                 if (tradeSize <= 0) return;
 
-                await _contractManager.PlaceTrailingBuyOrder(new MarketOrder
+                await placeOrder(new MarketOrder
                 {
                     Quantity = tradeSize,
                     Symbol = tick.Symbol,

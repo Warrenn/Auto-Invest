@@ -373,10 +373,10 @@ namespace Auto_Invest_Test
         //        .BDDfy("do not short stock if there is not enough purchase power");
         //}
 
-        public IEnumerable<decimal> TickValues(string symbol, DateTime start, DateTime endDate)
+        public IEnumerable<decimal> PolygonValues(string symbol, DateTime start, DateTime endDate)
         {
             var basePath = Path.GetFullPath("../../../../", Environment.CurrentDirectory);
-            var dataPath = Path.Join(basePath, "Auto-Invest\\cfn\\Data");
+            var dataPath = Path.Join(basePath, "Data\\Polygon-SPGI");
             var random = new Random((int)DateTime.UtcNow.Ticks);
 
             var dateIndex = start;
@@ -418,8 +418,60 @@ namespace Auto_Invest_Test
             string FileName(DateTime fileDate) => Path.Join(dataPath, $"{symbol.ToUpper()}-{fileDate:yyyy-MM-dd}.json");
         }
 
+        public IEnumerable<decimal> TickValues(string symbol, DateTime start, DateTime endDate)
+        {
+            var basePath = Path.GetFullPath("../../../../", Environment.CurrentDirectory);
+            var dataPath = Path.Join(basePath, "Data\\Tick-SPGI");
+            var random = new Random((int)DateTime.UtcNow.Ticks);
+
+            var dateIndex = start;
+            while (true)
+            {
+                if (dateIndex > endDate) break;
+
+                var fileName = FileName(dateIndex);
+                dateIndex = dateIndex.AddMonths(1);
+
+                if (!File.Exists(fileName)) continue;
+
+                using var stream = File.OpenRead(fileName);
+                var reader = new StreamReader(stream);
+                reader.ReadLine();
+                var line = reader.ReadLine();
+
+                while (!string.IsNullOrWhiteSpace(line))
+                {
+                    var parts = line.Split(',');
+                    if (parts.Length != 7)
+                    {
+                        line = reader.ReadLine();
+                        continue;
+                    }
+
+                    yield return decimal.Parse(parts[2]);
+
+                    if (random.Next(0, 2) == 0)
+                    {
+                        yield return decimal.Parse(parts[4]);
+                        yield return decimal.Parse(parts[3]);
+                    }
+                    else
+                    {
+                        yield return decimal.Parse(parts[3]);
+                        yield return decimal.Parse(parts[4]);
+                    }
+
+                    yield return decimal.Parse(parts[5]);
+
+                    line = reader.ReadLine();
+                }
+            }
+
+            string FileName(DateTime fileDate) => Path.Join(dataPath, $"{symbol.ToUpper()}-{fileDate:yyyy-MM}.csv");
+        }
+
         [Fact]
-        public async Task BackTestingSPGI()
+        public async Task back_testing_SPGI_polygon()
         {
             _trailing = 50M;
             _tradeQty = 1M;
@@ -428,7 +480,28 @@ namespace Auto_Invest_Test
 
             Trace.WriteLine($"start funding:{_funds:C} ");
 
-            var enumTicks = TickValues("SPGI", new DateTime(2021, 2, 1), new DateTime(2022, 4, 10));
+            var enumTicks = PolygonValues("SPGI", new DateTime(2021, 2, 1), new DateTime(2022, 4, 10));
+            await simulate_trades(enumTicks);
+
+            var checkC = await _manager.GetContractState(SYMBOL);
+            var netp = (checkC.Funding + (checkC.QuantityOnHand * checkC.AveragePrice) - _funds) / _funds;
+
+            Trace.WriteLine($"end funding:{checkC.Funding:C} qty:{checkC.QuantityOnHand:F} ave:{checkC.AveragePrice:F} total assets{checkC.Funding + checkC.QuantityOnHand * checkC.AveragePrice:C}");
+            Trace.WriteLine($"total % :{(checkC.Funding - _funds) / _funds:P} net with assets % :{netp:P} ");
+            Trace.WriteLine("DONE");
+        }
+
+        [Fact]
+        public async Task back_testing_SPGI_tick()
+        {
+            _trailing = 50M;
+            _tradeQty = 1M;
+            _marginProtection = 0.1M;
+            _funds = 1000M;
+
+            Trace.WriteLine($"start funding:{_funds:C} ");
+
+            var enumTicks = TickValues("SPGI", new DateTime(2019, 12, 1), new DateTime(2022, 3, 1));
             await simulate_trades(enumTicks);
 
             var checkC = await _manager.GetContractState(SYMBOL);

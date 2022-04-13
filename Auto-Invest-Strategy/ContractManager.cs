@@ -196,7 +196,7 @@ namespace Auto_Invest_Strategy
             await Task.Run(() => { });
         }
 
-        private static void BuyComplete(ActionDetails details, Contract contract, IContractEditor editor)
+        public void BuyComplete(ActionDetails details, Contract contract, IContractEditor editor)
         {
             var originalQty = contract.QuantityOnHand;
             var originalCost = contract.TotalCost;
@@ -236,7 +236,7 @@ namespace Auto_Invest_Strategy
             await Task.Run(() => { });
         }
 
-        private static void SellComplete(ActionDetails details, Contract contract, IContractEditor editor)
+        public void SellComplete(ActionDetails details, Contract contract, IContractEditor editor)
         {
             var originalQty = contract.QuantityOnHand;
             var originalCost = contract.TotalCost;
@@ -246,8 +246,6 @@ namespace Auto_Invest_Strategy
             editor.SetFunding(contract.Funding + details.CostOfOrder - details.Commission);
             editor.SetQuantity(newQuantity);
             editor.SetTotalCost(newTotalCost);
-
-            if (originalQty == 0) editor.SetAveragePrice(details.PricePerUnit);
 
             if (newQuantity > 0) return;
 

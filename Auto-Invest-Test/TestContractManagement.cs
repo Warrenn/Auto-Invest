@@ -28,6 +28,7 @@ namespace Auto_Invest_Test
         private uint _safetyBands = 10;
         private decimal _trailing = 1;
         private decimal _marginProtection = 0.01M;
+        private decimal _profitPercentage = 0M;
         private Contract _contract;
         private readonly Mock<IContractClient> _contractClientMock = new();
         private ContractManager _manager;
@@ -109,7 +110,7 @@ namespace Auto_Invest_Test
             var orderId = 1;
             _stopLimits = new Dictionary<int, StopLimit>();
 
-            _contract = new Contract(SYMBOL, _funds, _trailing, _tradeQty, _initialAmount, safetyBands: _safetyBands, marginProtection: _marginProtection);
+            _contract = new Contract(SYMBOL, _funds, _trailing, _tradeQty, _initialAmount, safetyBands: _safetyBands, marginProtection: _marginProtection, profitPercentage: _profitPercentage);
             _contractClientMock
                 .Setup(_ => _.ListenForCompletion(SYMBOL, It.IsAny<IOrderCompletion>()))
                 .Callback((string s, IOrderCompletion o) => { orderCompletion = o; });
@@ -131,7 +132,7 @@ namespace Auto_Invest_Test
 
             _manager = new ContractManager(_contractClientMock.Object);
             _manager.RegisterContract(_contract);
-            _strategy = new TrailingBuySellStrategy(_manager);
+            _strategy = new TrailingBuySellStrategy(_manager, _manager);
 
             var previousTrade = -1M;
             foreach (var trade in trades)
@@ -144,6 +145,7 @@ namespace Auto_Invest_Test
 
                 foreach (var limit in limits)
                 {
+                    if (limit == null) continue;
                     if (limit.StopPrice < min || limit.StopPrice > max) continue;
                     var slippage = limit.Side == ActionSide.Sell ? -0.1M : 0.1M;
                     var price = limit.StopPrice + slippage;
@@ -475,8 +477,10 @@ namespace Auto_Invest_Test
         {
             _trailing = 50M;
             _tradeQty = 1M;
-            _marginProtection = 0.1M;
+            _initialAmount = 1; 
+            _marginProtection = 5M;
             _funds = 1000M;
+            _profitPercentage = 0M;
 
             Trace.WriteLine($"start funding:{_funds:C} ");
 
@@ -494,9 +498,9 @@ namespace Auto_Invest_Test
         [Fact]
         public async Task back_testing_SPGI_tick()
         {
-            _trailing = 50M;
+            _trailing = 1M;
             _tradeQty = 1M;
-            _marginProtection = 0.1M;
+            _marginProtection = 5M;
             _funds = 1000M;
 
             Trace.WriteLine($"start funding:{_funds:C} ");

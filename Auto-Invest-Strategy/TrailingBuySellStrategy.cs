@@ -6,6 +6,7 @@ namespace Auto_Invest_Strategy
     public class TrailingBuySellStrategy : IOrderFilledProcess, IRecordTick
     {
         private readonly IContractManager _contractManager;
+        private readonly IBuySellLogic _buySellLogic;
 
         private static decimal LowerLimit(decimal baseAmount, decimal offset)
             => baseAmount - offset;
@@ -13,44 +14,46 @@ namespace Auto_Invest_Strategy
         private static decimal UpperLimit(decimal baseAmount, decimal offset)
             => baseAmount + offset;
 
-        public TrailingBuySellStrategy(IContractManager contractManager)
+        public static Func<decimal, decimal, decimal> SimulateCommission { get; set; } =
+            (decimal size, decimal price) => size * 0.02M;
+
+        public TrailingBuySellStrategy(IContractManager contractManager, IBuySellLogic buySellLogic)
         {
             _contractManager = contractManager;
+            _buySellLogic = buySellLogic;
             contractManager.RegisterForOrderFilled(this);
         }
 
         /// <summary>
-        /// Workout the amount that is still available to be borrowed at this moment, using the given margin requirements
-        /// and how much has already been borrowed
+        /// Workout the purchase power amount using the given margin requirements, less whatever has already been borrowed
         /// </summary>
         /// <param name="funds">Amount of funds on hand either owed or as cash</param>
-        /// <param name="qtyOnHand">Amount of stock on hand at this moment</param>
+        /// <param name="qtyOnHand">Amount of stock on hand at this moment or amount currently shorted</param>
         /// <param name="pricePerStock">Current price per unit of stock at this moment</param>
         /// <param name="marginPct">Required margin percentage</param>
         /// <returns>How much funds are still accessible at this moment</returns>
-        public static decimal BorrowableLiquidity(
+        public static decimal FundsAvailable(
             decimal funds,
             decimal qtyOnHand,
             decimal pricePerStock,
             decimal marginPct)
-            => (1 - marginPct) * ((qtyOnHand * pricePerStock + funds) / marginPct) + (funds < 0 ? funds : 0);
+            => (1 - marginPct) * (qtyOnHand * pricePerStock + funds) / marginPct + funds;
 
         /// <summary>
-        /// Workout how much is available that can be used to short stock at this moment, using the given margin
-        /// requirements and how much stock has already been shorted
+        /// Workout the value of stocks that can be sold given the margin requirements,
+        /// less the amount of stocks already shorted
         /// </summary>
-        /// <param name="funds">Amount of funds on hand at this moment</param>
-        /// <param name="qtyOnHand">Amount of stock on hand or amount of stock shorted</param>
+        /// <param name="funds">Amount of funds on hand either owed or as cash</param>
+        /// <param name="qtyOnHand">Amount of stock on hand at this moment or amount currently shorted</param>
         /// <param name="pricePerStock">Current price per unit of stock at this moment</param>
         /// <param name="marginPct">Required margin percentage</param>
-        /// <returns>Amount available to be used to short stock</returns>
-        public static decimal ShortableLiquidity(
+        /// <returns>Stock value that can be sold at this moment</returns>
+        public static decimal StockValueAvailable(
             decimal funds,
             decimal qtyOnHand,
             decimal pricePerStock,
             decimal marginPct)
-            => (1 - marginPct) * ((qtyOnHand * pricePerStock + funds) / marginPct) +
-               (qtyOnHand < 0 ? qtyOnHand * pricePerStock : 0);
+            => (qtyOnHand * pricePerStock + funds) / marginPct + (qtyOnHand < 0 ? qtyOnHand * pricePerStock : 0);
 
         /// <summary>
         /// The highest market price that we can hold the position at, above which a margin call will be made.
@@ -72,6 +75,48 @@ namespace Auto_Invest_Strategy
         public static decimal LowestMaintainablePrice(decimal funds, decimal marginPct, decimal quantity) =>
             funds / ((marginPct - 1) * quantity);
 
+        public bool IsSimulatedBuyProfitable(Contract contract, decimal tradeSize, decimal price)
+        {
+            var simulator = new Simulator(contract);
+            var simulatedContract = simulator.Contract;
+            var action = new ActionDetails
+            {
+                Commission = SimulateCommission(tradeSize, price),
+                CostOfOrder = tradeSize * price,
+                PricePerUnit = price,
+                Qty = tradeSize,
+                Symbol = contract.Symbol
+            };
+
+            var equityBefore = contract.AveragePrice * contract.QuantityOnHand + contract.Funding;
+            _buySellLogic.BuyComplete(action, simulatedContract, simulator.Editor);
+            var equityAfter = contract.AveragePrice * simulatedContract.QuantityOnHand + simulatedContract.Funding;
+            var improvement = (equityAfter - equityBefore) / equityBefore;
+
+            return improvement >= contract.ProfitPercentage;
+        }
+
+        public bool IsSimulatedSellProfitable(Contract contract, decimal tradeSize, decimal price)
+        {
+            var simulator = new Simulator(contract);
+            var simulatedContract = simulator.Contract;
+            var action = new ActionDetails
+            {
+                Commission = SimulateCommission(tradeSize, price),
+                CostOfOrder = tradeSize * price,
+                PricePerUnit = price,
+                Qty = tradeSize,
+                Symbol = contract.Symbol
+            };
+
+            var equityBefore = contract.AveragePrice * contract.QuantityOnHand + contract.Funding;
+            _buySellLogic.SellComplete(action, simulatedContract, simulator.Editor);
+            var equityAfter = simulatedContract.AveragePrice * simulatedContract.QuantityOnHand + simulatedContract.Funding;
+            var improvement = (equityAfter - equityBefore) / equityBefore;
+
+            return improvement >= contract.ProfitPercentage;
+        }
+
         public async Task Tick(TickPosition tick)
         {
             var contractState = await _contractManager.GetContractState(tick.Symbol);
@@ -92,7 +137,7 @@ namespace Auto_Invest_Strategy
             {
                 var limit = UpperLimit(tick.Position, contractState.TrailingOffset);
                 if (limit > contractState.BuyOrderLimit) return;
-                await PlaceOrder(limit, BorrowableLiquidity, _contractManager.PlaceTrailingBuyOrder);
+                await PlaceOrder(limit, FundsAvailable, _contractManager.PlaceTrailingBuyOrder, IsSimulatedBuyProfitable);
                 return;
             }
 
@@ -100,7 +145,7 @@ namespace Auto_Invest_Strategy
             {
                 var limit = LowerLimit(tick.Position, contractState.TrailingOffset);
                 if (limit < contractState.SellOrderLimit) return;
-                await PlaceOrder(limit, ShortableLiquidity, _contractManager.PlaceTrailingSellOrder);
+                await PlaceOrder(limit, StockValueAvailable, _contractManager.PlaceTrailingSellOrder, IsSimulatedSellProfitable);
                 return;
             }
 
@@ -109,7 +154,7 @@ namespace Auto_Invest_Strategy
             {
                 var limit = LowerLimit(tick.Position, contractState.TrailingOffset);
                 if (limit < contractState.AveragePrice) limit = contractState.AveragePrice;
-                await PlaceOrder(limit, ShortableLiquidity, _contractManager.PlaceTrailingSellOrder);
+                await PlaceOrder(limit, StockValueAvailable, _contractManager.PlaceTrailingSellOrder, IsSimulatedSellProfitable);
                 return;
             }
 
@@ -118,20 +163,23 @@ namespace Auto_Invest_Strategy
             {
                 var limit = UpperLimit(tick.Position, contractState.TrailingOffset);
                 if (limit > contractState.AveragePrice) limit = contractState.AveragePrice;
-                await PlaceOrder(limit, BorrowableLiquidity, _contractManager.PlaceTrailingBuyOrder);
+                await PlaceOrder(limit, FundsAvailable, _contractManager.PlaceTrailingBuyOrder, IsSimulatedBuyProfitable);
             }
 
-            async Task PlaceOrder(decimal limit, Func<decimal, decimal, decimal, decimal, decimal> calculateLiquidity, Func<MarketOrder, Task> placeOrder)
+            async Task PlaceOrder(
+                decimal limit,
+                Func<decimal, decimal, decimal, decimal, decimal> calculateAvailableValue,
+                Func<MarketOrder, Task> placeOrder,
+                Func<Contract, decimal, decimal, bool> isSimulatedTradeProfitable)
             {
-                var liquidity = calculateLiquidity(
-                    contractState.Funding,
-                    contractState.QuantityOnHand,
-                    limit,
+                var availableValue = calculateAvailableValue(contractState.Funding, contractState.QuantityOnHand, limit,
                     Contract.InitialMargin);
 
-                var tradeSize = (liquidity * contractState.TradePercent) / limit;
+                if (availableValue <= 0) return;
 
-                if (tradeSize <= 0) return;
+                var tradeSize = (availableValue * contractState.TradePercent) / limit;
+
+                if (!isSimulatedTradeProfitable(contractState, tradeSize, limit)) return;
 
                 await placeOrder(new MarketOrder
                 {

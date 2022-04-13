@@ -19,7 +19,7 @@ namespace Auto_Invest_Strategy
             decimal averagePrice = 0,
             uint safetyBands = 10,
             decimal marginProtection = 0,
-            decimal profitPercentage = 1)
+            decimal profitPercentage = 0)
         {
             if (string.IsNullOrWhiteSpace(symbol)) throw new ArgumentNullException(nameof(symbol));
             if (funding == 0 && initialQuantity == 0) throw new ArgumentException($"{nameof(funding)} and {nameof(initialQuantity)} cannot both be 0", nameof(funding));
@@ -33,14 +33,13 @@ namespace Auto_Invest_Strategy
             MarginProtection = Math.Abs(marginProtection);
             TradePercent = Math.Abs(tradePercentage % 1);
             AveragePrice = Math.Abs(averagePrice);
-            ProfitPercentage = Math.Abs(profitPercentage % 1);
+            ProfitPercentage = profitPercentage;
 
             if (TrailingOffset < 0) TrailingOffset = 0;
             if (MarginProtection < 0) MarginProtection = TrailingOffset;
             if (SafetyBands == 0) SafetyBands = 1;
             if (TradePercent == 0) TradePercent = 1;
             if (AveragePrice > 0 && QuantityOnHand > 0) TotalCost = QuantityOnHand * AveragePrice;
-            if (ProfitPercentage == 0) ProfitPercentage = 1;
         }
 
         /// <summary>

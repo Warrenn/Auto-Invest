@@ -6,7 +6,6 @@ namespace Auto_Invest_Strategy
     public class TrailingBuySellStrategy : IOrderFilledProcess, IRecordTick
     {
         private readonly IContractManager _contractManager;
-        private readonly IBuySellLogic _buySellLogic;
         private readonly MovingAverage _movingAverage;
 
         private static decimal LowerLimit(decimal baseAmount, decimal offset)
@@ -17,10 +16,9 @@ namespace Auto_Invest_Strategy
 
         public static int MovingAverageSize { get; set; } = 20;
 
-        public TrailingBuySellStrategy(IContractManager contractManager, IBuySellLogic buySellLogic)
+        public TrailingBuySellStrategy(IContractManager contractManager)
         {
             _contractManager = contractManager;
-            _buySellLogic = buySellLogic;
             contractManager.RegisterForOrderFilled(this);
             _movingAverage = new MovingAverage(MovingAverageSize);
         }
@@ -114,7 +112,7 @@ namespace Auto_Invest_Strategy
             }
 
             if (contractState.RunState == RunState.TriggerRun &&
-                tick.Position >= contractState.UpperBound)
+                minPosition >= contractState.UpperBound)
             {
                 var limit = LowerLimit(minPosition, contractState.TrailingOffset);
                 if (limit < contractState.AveragePrice) limit = contractState.AveragePrice;
@@ -123,7 +121,7 @@ namespace Auto_Invest_Strategy
             }
 
             if (contractState.RunState == RunState.TriggerRun &&
-                tick.Position <= contractState.LowerBound)
+                maxPosition <= contractState.LowerBound)
             {
                 var limit = UpperLimit(maxPosition, contractState.TrailingOffset);
                 if (limit > contractState.AveragePrice) limit = contractState.AveragePrice;

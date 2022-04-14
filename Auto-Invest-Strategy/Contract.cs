@@ -28,7 +28,7 @@ namespace Auto_Invest_Strategy
             Funding = funding;
             SafetyBands = safetyBands;
             QuantityOnHand = initialQuantity;
-            TrailingOffset = trailingOffset;
+            TrailingOffset = Math.Abs(trailingOffset);
             MarginProtection = Math.Abs(marginProtection);
             TradePercent = Math.Abs(tradePercentage % 1);
             AveragePrice = Math.Abs(averagePrice);

@@ -131,7 +131,7 @@ namespace Auto_Invest_Test
 
             _manager = new ContractManager(_contractClientMock.Object);
             _manager.RegisterContract(_contract);
-            _strategy = new TrailingBuySellStrategy(_manager, _manager);
+            _strategy = new TrailingBuySellStrategy(_manager);
 
             var previousTrade = -1M;
             foreach (var trade in trades)
@@ -475,8 +475,10 @@ namespace Auto_Invest_Test
         public async Task back_testing_SPGI_polygon()
         {
             _trailing = 0.1M;
-            _marginProtection = 5M;
+            _marginProtection = 2M;
             _funds = 1000M;
+            _initialAmount = 1M;
+            TrailingBuySellStrategy.MovingAverageSize = 200;
 
             Trace.WriteLine($"start funding:{_funds:C} ");
 
@@ -495,8 +497,10 @@ namespace Auto_Invest_Test
         public async Task back_testing_SPGI_tick()
         {
             _trailing = 0.1M;
-            _marginProtection = 5M;
+            _marginProtection = 1M;
+            _initialAmount = 1M;
             _funds = 1000M;
+            TrailingBuySellStrategy.MovingAverageSize = 200;
 
             Trace.WriteLine($"start funding:{_funds:C} ");
 

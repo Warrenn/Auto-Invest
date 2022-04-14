@@ -48,9 +48,6 @@ namespace Auto_Invest_Test
                 l.OrderId == orderId)), Times.AtLeast(times));
         }
 
-        public void the_limit_order_should_not_be_called() =>
-            _contractClientMock.Verify(_ => _.PlaceStopLimit(It.IsAny<StopLimit>()), Times.Never);
-
         public void the_funds_should_be(decimal funds) => Round(_contract.Funding, 2).ShouldBe(funds);
 
         public void the_quantity_should_be(decimal amount) => Round(_contract.QuantityOnHand, 2).ShouldBe(amount);

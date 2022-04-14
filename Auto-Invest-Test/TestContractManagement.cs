@@ -475,10 +475,8 @@ namespace Auto_Invest_Test
         public async Task back_testing_SPGI_polygon()
         {
             _trailing = 0.1M;
-            _marginProtection = 2M;
+            _marginProtection = 1M;
             _funds = 1000M;
-            _initialAmount = 1M;
-            TrailingBuySellStrategy.MovingAverageSize = 200;
 
             Trace.WriteLine($"start funding:{_funds:C} ");
 
@@ -498,9 +496,7 @@ namespace Auto_Invest_Test
         {
             _trailing = 0.1M;
             _marginProtection = 1M;
-            _initialAmount = 1M;
             _funds = 1000M;
-            TrailingBuySellStrategy.MovingAverageSize = 200;
 
             Trace.WriteLine($"start funding:{_funds:C} ");
 

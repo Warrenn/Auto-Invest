@@ -477,10 +477,16 @@ namespace Auto_Invest_Test
         {
             _trailing = 50M;
             _tradeQty = 1M;
-            _initialAmount = 1; 
+            TrailingBuySellStrategy.SimulateCommission = (size, price, contract) =>
+            {
+                if (contract.QuantityOnHand == 0) return 0;
+                return  size * 0.02M;
+            };
+
+            _initialAmount = 0; 
             _marginProtection = 5M;
             _funds = 1000M;
-            _profitPercentage = 0M;
+            _profitPercentage = -0.01M;
 
             Trace.WriteLine($"start funding:{_funds:C} ");
 
@@ -498,10 +504,11 @@ namespace Auto_Invest_Test
         [Fact]
         public async Task back_testing_SPGI_tick()
         {
-            _trailing = 1M;
+            _trailing = 50M;
             _tradeQty = 1M;
             _marginProtection = 5M;
             _funds = 1000M;
+            _profitPercentage = -0.01M;
 
             Trace.WriteLine($"start funding:{_funds:C} ");
 

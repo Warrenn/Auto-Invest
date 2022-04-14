@@ -7,6 +7,7 @@ namespace Auto_Invest_Strategy
     {
         private readonly IContractManager _contractManager;
         private readonly IBuySellLogic _buySellLogic;
+        private readonly MovingAverage _movingAverage;
 
         private static decimal LowerLimit(decimal baseAmount, decimal offset)
             => baseAmount - offset;
@@ -14,14 +15,17 @@ namespace Auto_Invest_Strategy
         private static decimal UpperLimit(decimal baseAmount, decimal offset)
             => baseAmount + offset;
 
-        public static Func<decimal, decimal, decimal> SimulateCommission { get; set; } =
-            (decimal size, decimal price) => size * 0.02M;
+        public static Func<decimal, decimal, Contract, decimal> SimulateCommission { get; set; } =
+            (size, _, _) => size * 0.02M;
+
+        public static int MovingAverageSize { get; set; } = 20;
 
         public TrailingBuySellStrategy(IContractManager contractManager, IBuySellLogic buySellLogic)
         {
             _contractManager = contractManager;
             _buySellLogic = buySellLogic;
             contractManager.RegisterForOrderFilled(this);
+            _movingAverage = new MovingAverage(MovingAverageSize);
         }
 
         /// <summary>
@@ -75,46 +79,40 @@ namespace Auto_Invest_Strategy
         public static decimal LowestMaintainablePrice(decimal funds, decimal marginPct, decimal quantity) =>
             funds / ((marginPct - 1) * quantity);
 
-        public bool IsSimulatedBuyProfitable(Contract contract, decimal tradeSize, decimal price)
+        public Contract SimulateBuy(Contract contract, decimal tradeSize, decimal price)
         {
             var simulator = new Simulator(contract);
             var simulatedContract = simulator.Contract;
             var action = new ActionDetails
             {
-                Commission = SimulateCommission(tradeSize, price),
+                Commission = SimulateCommission(tradeSize, price, contract),
                 CostOfOrder = tradeSize * price,
                 PricePerUnit = price,
                 Qty = tradeSize,
                 Symbol = contract.Symbol
             };
 
-            var equityBefore = contract.AveragePrice * contract.QuantityOnHand + contract.Funding;
             _buySellLogic.BuyComplete(action, simulatedContract, simulator.Editor);
-            var equityAfter = contract.AveragePrice * simulatedContract.QuantityOnHand + simulatedContract.Funding;
-            var improvement = (equityAfter - equityBefore) / equityBefore;
 
-            return improvement >= contract.ProfitPercentage;
+            return simulatedContract;
         }
 
-        public bool IsSimulatedSellProfitable(Contract contract, decimal tradeSize, decimal price)
+        public Contract SimulateSell(Contract contract, decimal tradeSize, decimal price)
         {
             var simulator = new Simulator(contract);
             var simulatedContract = simulator.Contract;
             var action = new ActionDetails
             {
-                Commission = SimulateCommission(tradeSize, price),
+                Commission = SimulateCommission(tradeSize, price, contract),
                 CostOfOrder = tradeSize * price,
                 PricePerUnit = price,
                 Qty = tradeSize,
                 Symbol = contract.Symbol
             };
 
-            var equityBefore = contract.AveragePrice * contract.QuantityOnHand + contract.Funding;
             _buySellLogic.SellComplete(action, simulatedContract, simulator.Editor);
-            var equityAfter = simulatedContract.AveragePrice * simulatedContract.QuantityOnHand + simulatedContract.Funding;
-            var improvement = (equityAfter - equityBefore) / equityBefore;
 
-            return improvement >= contract.ProfitPercentage;
+            return simulatedContract;
         }
 
         public async Task Tick(TickPosition tick)
@@ -137,7 +135,7 @@ namespace Auto_Invest_Strategy
             {
                 var limit = UpperLimit(tick.Position, contractState.TrailingOffset);
                 if (limit > contractState.BuyOrderLimit) return;
-                await PlaceOrder(limit, FundsAvailable, _contractManager.PlaceTrailingBuyOrder, IsSimulatedBuyProfitable);
+                await PlaceOrder(limit, FundsAvailable, _contractManager.PlaceTrailingBuyOrder, SimulateBuy);
                 return;
             }
 
@@ -145,7 +143,7 @@ namespace Auto_Invest_Strategy
             {
                 var limit = LowerLimit(tick.Position, contractState.TrailingOffset);
                 if (limit < contractState.SellOrderLimit) return;
-                await PlaceOrder(limit, StockValueAvailable, _contractManager.PlaceTrailingSellOrder, IsSimulatedSellProfitable);
+                await PlaceOrder(limit, StockValueAvailable, _contractManager.PlaceTrailingSellOrder, SimulateSell);
                 return;
             }
 
@@ -154,7 +152,7 @@ namespace Auto_Invest_Strategy
             {
                 var limit = LowerLimit(tick.Position, contractState.TrailingOffset);
                 if (limit < contractState.AveragePrice) limit = contractState.AveragePrice;
-                await PlaceOrder(limit, StockValueAvailable, _contractManager.PlaceTrailingSellOrder, IsSimulatedSellProfitable);
+                await PlaceOrder(limit, StockValueAvailable, _contractManager.PlaceTrailingSellOrder, SimulateSell);
                 return;
             }
 
@@ -163,14 +161,14 @@ namespace Auto_Invest_Strategy
             {
                 var limit = UpperLimit(tick.Position, contractState.TrailingOffset);
                 if (limit > contractState.AveragePrice) limit = contractState.AveragePrice;
-                await PlaceOrder(limit, FundsAvailable, _contractManager.PlaceTrailingBuyOrder, IsSimulatedBuyProfitable);
+                await PlaceOrder(limit, FundsAvailable, _contractManager.PlaceTrailingBuyOrder, SimulateBuy);
             }
 
             async Task PlaceOrder(
                 decimal limit,
                 Func<decimal, decimal, decimal, decimal, decimal> calculateAvailableValue,
                 Func<MarketOrder, Task> placeOrder,
-                Func<Contract, decimal, decimal, bool> isSimulatedTradeProfitable)
+                Func<Contract, decimal, decimal, Contract> simulateTrade)
             {
                 var availableValue = calculateAvailableValue(contractState.Funding, contractState.QuantityOnHand, limit,
                     Contract.InitialMargin);
@@ -179,7 +177,14 @@ namespace Auto_Invest_Strategy
 
                 var tradeSize = (availableValue * contractState.TradePercent) / limit;
 
-                if (!isSimulatedTradeProfitable(contractState, tradeSize, limit)) return;
+                var equityBefore = contractState.AveragePrice * contractState.QuantityOnHand + contractState.Funding;
+                var simulatedContract = simulateTrade(contractState, tradeSize, limit);
+                var equityAfter = simulatedContract.AveragePrice * simulatedContract.QuantityOnHand +
+                                  simulatedContract.Funding;
+
+                var tradeProfit = (equityAfter - equityBefore) / equityBefore;
+
+                if (tradeProfit < contractState.ProfitPercentage) return;
 
                 await placeOrder(new MarketOrder
                 {

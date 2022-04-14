@@ -15,8 +15,7 @@
                 original.QuantityOnHand,
                 original.AveragePrice,
                 original.SafetyBands,
-                original.MarginProtection,
-                original.ProfitPercentage);
+                original.MarginProtection);
 
             Contract.RegisterEditor(this);
         }

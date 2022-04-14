@@ -28,7 +28,6 @@ namespace Auto_Invest_Test
         private uint _safetyBands = 10;
         private decimal _trailing = 1;
         private decimal _marginProtection = 0.01M;
-        private decimal _profitPercentage = 0M;
         private Contract _contract;
         private readonly Mock<IContractClient> _contractClientMock = new();
         private ContractManager _manager;
@@ -110,7 +109,7 @@ namespace Auto_Invest_Test
             var orderId = 1;
             _stopLimits = new Dictionary<int, StopLimit>();
 
-            _contract = new Contract(SYMBOL, _funds, _trailing, _tradeQty, _initialAmount, safetyBands: _safetyBands, marginProtection: _marginProtection, profitPercentage: _profitPercentage);
+            _contract = new Contract(SYMBOL, _funds, _trailing, _tradeQty, _initialAmount, safetyBands: _safetyBands, marginProtection: _marginProtection);
             _contractClientMock
                 .Setup(_ => _.ListenForCompletion(SYMBOL, It.IsAny<IOrderCompletion>()))
                 .Callback((string s, IOrderCompletion o) => { orderCompletion = o; });
@@ -475,18 +474,9 @@ namespace Auto_Invest_Test
         [Fact]
         public async Task back_testing_SPGI_polygon()
         {
-            _trailing = 50M;
-            _tradeQty = 1M;
-            TrailingBuySellStrategy.SimulateCommission = (size, price, contract) =>
-            {
-                if (contract.QuantityOnHand == 0) return 0;
-                return  size * 0.02M;
-            };
-
-            _initialAmount = 0; 
+            _trailing = 0.1M;
             _marginProtection = 5M;
             _funds = 1000M;
-            _profitPercentage = -0.01M;
 
             Trace.WriteLine($"start funding:{_funds:C} ");
 
@@ -504,11 +494,9 @@ namespace Auto_Invest_Test
         [Fact]
         public async Task back_testing_SPGI_tick()
         {
-            _trailing = 50M;
-            _tradeQty = 1M;
+            _trailing = 0.1M;
             _marginProtection = 5M;
             _funds = 1000M;
-            _profitPercentage = -0.01M;
 
             Trace.WriteLine($"start funding:{_funds:C} ");
 

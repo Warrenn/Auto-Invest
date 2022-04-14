@@ -10,13 +10,10 @@ namespace Auto_Invest_Strategy
         private readonly MovingAverage _movingAverage;
 
         private static decimal LowerLimit(decimal baseAmount, decimal offset)
-            => baseAmount - offset;
+            => baseAmount - (baseAmount * offset);
 
         private static decimal UpperLimit(decimal baseAmount, decimal offset)
-            => baseAmount + offset;
-
-        public static Func<decimal, decimal, Contract, decimal> SimulateCommission { get; set; } =
-            (size, _, _) => size * 0.02M;
+            => baseAmount + (baseAmount * offset);
 
         public static int MovingAverageSize { get; set; } = 20;
 
@@ -79,45 +76,14 @@ namespace Auto_Invest_Strategy
         public static decimal LowestMaintainablePrice(decimal funds, decimal marginPct, decimal quantity) =>
             funds / ((marginPct - 1) * quantity);
 
-        public Contract SimulateBuy(Contract contract, decimal tradeSize, decimal price)
-        {
-            var simulator = new Simulator(contract);
-            var simulatedContract = simulator.Contract;
-            var action = new ActionDetails
-            {
-                Commission = SimulateCommission(tradeSize, price, contract),
-                CostOfOrder = tradeSize * price,
-                PricePerUnit = price,
-                Qty = tradeSize,
-                Symbol = contract.Symbol
-            };
-
-            _buySellLogic.BuyComplete(action, simulatedContract, simulator.Editor);
-
-            return simulatedContract;
-        }
-
-        public Contract SimulateSell(Contract contract, decimal tradeSize, decimal price)
-        {
-            var simulator = new Simulator(contract);
-            var simulatedContract = simulator.Contract;
-            var action = new ActionDetails
-            {
-                Commission = SimulateCommission(tradeSize, price, contract),
-                CostOfOrder = tradeSize * price,
-                PricePerUnit = price,
-                Qty = tradeSize,
-                Symbol = contract.Symbol
-            };
-
-            _buySellLogic.SellComplete(action, simulatedContract, simulator.Editor);
-
-            return simulatedContract;
-        }
-
         public async Task Tick(TickPosition tick)
         {
             var contractState = await _contractManager.GetContractState(tick.Symbol);
+            _movingAverage.Add(tick.Position);
+
+            var sma = _movingAverage.CurrentAverage;
+            var minPosition = Math.Min(tick.Position, sma);
+            var maxPosition = Math.Max(tick.Position, sma);
 
             if (contractState.AveragePrice == 0)
             {
@@ -133,42 +99,41 @@ namespace Auto_Invest_Strategy
 
             if (contractState.RunState == RunState.BuyRun)
             {
-                var limit = UpperLimit(tick.Position, contractState.TrailingOffset);
+                var limit = UpperLimit(maxPosition, contractState.TrailingOffset);
                 if (limit > contractState.BuyOrderLimit) return;
-                await PlaceOrder(limit, FundsAvailable, _contractManager.PlaceTrailingBuyOrder, SimulateBuy);
+                await PlaceOrder(limit, FundsAvailable, _contractManager.PlaceTrailingBuyOrder);
                 return;
             }
 
             if (contractState.RunState == RunState.SellRun)
             {
-                var limit = LowerLimit(tick.Position, contractState.TrailingOffset);
+                var limit = LowerLimit(minPosition, contractState.TrailingOffset);
                 if (limit < contractState.SellOrderLimit) return;
-                await PlaceOrder(limit, StockValueAvailable, _contractManager.PlaceTrailingSellOrder, SimulateSell);
+                await PlaceOrder(limit, StockValueAvailable, _contractManager.PlaceTrailingSellOrder);
                 return;
             }
 
             if (contractState.RunState == RunState.TriggerRun &&
                 tick.Position >= contractState.UpperBound)
             {
-                var limit = LowerLimit(tick.Position, contractState.TrailingOffset);
+                var limit = LowerLimit(minPosition, contractState.TrailingOffset);
                 if (limit < contractState.AveragePrice) limit = contractState.AveragePrice;
-                await PlaceOrder(limit, StockValueAvailable, _contractManager.PlaceTrailingSellOrder, SimulateSell);
+                await PlaceOrder(limit, StockValueAvailable, _contractManager.PlaceTrailingSellOrder);
                 return;
             }
 
             if (contractState.RunState == RunState.TriggerRun &&
                 tick.Position <= contractState.LowerBound)
             {
-                var limit = UpperLimit(tick.Position, contractState.TrailingOffset);
+                var limit = UpperLimit(maxPosition, contractState.TrailingOffset);
                 if (limit > contractState.AveragePrice) limit = contractState.AveragePrice;
-                await PlaceOrder(limit, FundsAvailable, _contractManager.PlaceTrailingBuyOrder, SimulateBuy);
+                await PlaceOrder(limit, FundsAvailable, _contractManager.PlaceTrailingBuyOrder);
             }
 
             async Task PlaceOrder(
                 decimal limit,
                 Func<decimal, decimal, decimal, decimal, decimal> calculateAvailableValue,
-                Func<MarketOrder, Task> placeOrder,
-                Func<Contract, decimal, decimal, Contract> simulateTrade)
+                Func<MarketOrder, Task> placeOrder)
             {
                 var availableValue = calculateAvailableValue(contractState.Funding, contractState.QuantityOnHand, limit,
                     Contract.InitialMargin);
@@ -176,15 +141,6 @@ namespace Auto_Invest_Strategy
                 if (availableValue <= 0) return;
 
                 var tradeSize = (availableValue * contractState.TradePercent) / limit;
-
-                var equityBefore = contractState.AveragePrice * contractState.QuantityOnHand + contractState.Funding;
-                var simulatedContract = simulateTrade(contractState, tradeSize, limit);
-                var equityAfter = simulatedContract.AveragePrice * simulatedContract.QuantityOnHand +
-                                  simulatedContract.Funding;
-
-                var tradeProfit = (equityAfter - equityBefore) / equityBefore;
-
-                if (tradeProfit < contractState.ProfitPercentage) return;
 
                 await placeOrder(new MarketOrder
                 {

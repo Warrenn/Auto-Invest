@@ -24,7 +24,7 @@ public class TestContractManagementBase
     private TrailingBuySellStrategy _strategy;
     protected Dictionary<int, StopLimit> StopLimits;
     protected int MovingAveSize = 1;
-    protected string SYMBOL = "SPGI";
+    protected string Symbol = "SPGI";
 
     public async Task simulate_trades(IEnumerable<decimal> trades)
     {
@@ -32,9 +32,9 @@ public class TestContractManagementBase
         var orderId = 1;
         StopLimits = new Dictionary<int, StopLimit>();
 
-        Contract = new Contract(SYMBOL, Funds, TrailingOffset, TradePercentage, InitialSize, safetyBands: SafetyBands, marginProtection: MarginProtection);
+        Contract = new Contract(Symbol, Funds, TrailingOffset, TradePercentage, InitialSize, safetyBands: SafetyBands, marginProtection: MarginProtection);
         ContractClientMock
-            .Setup(_ => _.ListenForCompletion(SYMBOL, It.IsAny<IOrderCompletion>()))
+            .Setup(_ => _.ListenForCompletion(Symbol, It.IsAny<IOrderCompletion>()))
             .Callback((string s, IOrderCompletion o) => { orderCompletion = o; });
         ContractClientMock
             .Setup(_ => _.PlaceStopLimit(It.IsAny<StopLimit>()))
@@ -92,11 +92,11 @@ public class TestContractManagementBase
             await _strategy.Tick(new TickPosition
             {
                 Position = trade,
-                Symbol = SYMBOL
+                Symbol = Symbol
             });
 
             previousTrade = trade;
         }
-        Contract = await ContractManager.GetContractState(SYMBOL);
+        Contract = await ContractManager.GetContractState(Symbol);
     }
 }

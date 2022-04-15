@@ -13,10 +13,10 @@ namespace Auto_Invest_Test
 
     public class BackTests : TestContractManagementBase
     {
-        public IEnumerable<decimal> PolygonValues(string symbol, DateTime start, DateTime endDate)
+        public IEnumerable<decimal> PolygonValues(DateTime start, DateTime endDate)
         {
             var basePath = Path.GetFullPath("../../../../", Environment.CurrentDirectory);
-            var dataPath = Path.Join(basePath, $"Data\\Polygon-{symbol}");
+            var dataPath = Path.Join(basePath, $"Data\\Polygon-{Symbol}");
             var random = new Random((int)DateTime.UtcNow.Ticks);
 
             var dateIndex = start;
@@ -55,13 +55,13 @@ namespace Auto_Invest_Test
 
             }
 
-            string FileName(DateTime fileDate) => Path.Join(dataPath, $"{symbol.ToUpper()}-{fileDate:yyyy-MM-dd}.json");
+            string FileName(DateTime fileDate) => Path.Join(dataPath, $"{Symbol}-{fileDate:yyyy-MM-dd}.json");
         }
 
-        public IEnumerable<decimal> TickValues(string symbol, DateTime start, DateTime endDate)
+        public IEnumerable<decimal> TickValues(DateTime start, DateTime endDate)
         {
             var basePath = Path.GetFullPath("../../../../", Environment.CurrentDirectory);
-            var dataPath = Path.Join(basePath, $"Data\\Tick-{symbol}");
+            var dataPath = Path.Join(basePath, $"Data\\Tick-{Symbol}");
             var random = new Random((int)DateTime.UtcNow.Ticks);
 
             var dateIndex = start;
@@ -102,46 +102,68 @@ namespace Auto_Invest_Test
                 }
             }
 
-            string FileName(DateTime fileDate) => Path.Join(dataPath, $"{symbol.ToUpper()}-{fileDate:yyyy-MM}.csv");
+            string FileName(DateTime fileDate) => Path.Join(dataPath, $"{Symbol}-{fileDate:yyyy-MM}.csv");
         }
 
         [Fact]
         public async Task back_testing_SPGI_polygon()
         {
+            Symbol = "SPGI";
             TrailingOffset = 0.1M;
             MarginProtection = 1M;
             Funds = 1000M;
 
-            Trace.WriteLine($"start funding:{Funds:C} ");
+            var start = new DateTime(2016, 2, 1);
+            var endDate = new DateTime(2022, 4, 10);
 
-            var enumTicks = PolygonValues("SPGI", new DateTime(2021, 2, 1), new DateTime(2022, 4, 10));
-            await simulate_trades(enumTicks);
+            await RunTest(start, endDate, TickValues);
+        }
 
-            var checkC = await ContractManager.GetContractState(SYMBOL);
-            var netp = (checkC.Funding + (checkC.QuantityOnHand * checkC.AveragePrice) - Funds) / Funds;
+        [Fact]
+        public async Task back_testing_NDAQ_polygon()
+        {
+            Symbol = "NDAQ";
+            TrailingOffset = 0.1M;
+            MarginProtection = 1M;
+            Funds = 1000M;
 
-            Trace.WriteLine($"end funding:{checkC.Funding:C} qty:{checkC.QuantityOnHand:F} ave:{checkC.AveragePrice:F} total assets{checkC.Funding + checkC.QuantityOnHand * checkC.AveragePrice:C}");
-            Trace.WriteLine($"total % :{(checkC.Funding - Funds) / Funds:P} net with assets % :{netp:P} ");
-            Trace.WriteLine("DONE");
+            var start = new DateTime(2007, 4, 1);
+            var endDate = new DateTime(2022, 4, 10);
+
+            await RunTest(start, endDate, TickValues);
         }
 
         [Fact]
         public async Task back_testing_SPGI_tick()
         {
+            Symbol = "SPGI";
             TrailingOffset = 0.1M;
             MarginProtection = 1M;
             Funds = 1000M;
 
+            var start = new DateTime(2019, 12, 1);
+            var endDate = new DateTime(2022, 3, 1);
+
+            await RunTest(start, endDate, TickValues);
+        }
+
+        private async Task RunTest(DateTime start, DateTime endDate,Func<DateTime,DateTime,IEnumerable<decimal>> getValues)
+        {
             Trace.WriteLine($"start funding:{Funds:C} ");
 
-            var enumTicks = TickValues("SPGI", new DateTime(2019, 12, 1), new DateTime(2022, 3, 1));
+            var enumTicks = getValues(start, endDate);
             await simulate_trades(enumTicks);
 
-            var checkC = await ContractManager.GetContractState(SYMBOL);
-            var netp = (checkC.Funding + (checkC.QuantityOnHand * checkC.AveragePrice) - Funds) / Funds;
+            var checkC = await ContractManager.GetContractState(Symbol);
+            var totalAssets = checkC.Funding + checkC.QuantityOnHand * checkC.AveragePrice;
+            var netp = (totalAssets - Funds) / Funds;
+            var diffTimeSpan = endDate.Subtract(start);
+            var perday = netp / (decimal)diffTimeSpan.TotalDays;
 
-            Trace.WriteLine($"end funding:{checkC.Funding:C} qty:{checkC.QuantityOnHand:F} ave:{checkC.AveragePrice:F} total assets{checkC.Funding + checkC.QuantityOnHand * checkC.AveragePrice:C}");
-            Trace.WriteLine($"total % :{(checkC.Funding - Funds) / Funds:P} net with assets % :{netp:P} ");
+            Trace.WriteLine(
+                $"end funding:{checkC.Funding:C} size:{checkC.QuantityOnHand:F} ave price:{checkC.AveragePrice:F} total assets{totalAssets:C}");
+            Trace.WriteLine($"total funds:{(checkC.Funding - Funds) / Funds:P} net with assets:{netp:P} ");
+            Trace.WriteLine($"average per year:{perday * 365:P} per month:{perday * 30:P} per day:{perday:P}");
             Trace.WriteLine("DONE");
         }
     }

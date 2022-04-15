@@ -110,6 +110,7 @@ namespace Auto_Invest_Test
             Symbol = "SPGI";
             TrailingOffset = 0.1M;
             MarginProtection = 1M;
+            TradePercentage = 1M;
             Funds = 1000M;
 
             var start = new DateTime(2016, 2, 1);
@@ -122,8 +123,9 @@ namespace Auto_Invest_Test
         public async Task back_testing_NDAQ_polygon()
         {
             Symbol = "NDAQ";
-            TrailingOffset = 0.1M;
+            TrailingOffset = 0.5M;
             MarginProtection = 1M;
+            TradePercentage = 1M;
             Funds = 1000M;
 
             var start = new DateTime(2007, 4, 1);
@@ -154,13 +156,13 @@ namespace Auto_Invest_Test
             await simulate_trades(enumTicks);
 
             var checkC = await ContractManager.GetContractState(Symbol);
-            var totalAssets = checkC.Funding + checkC.QuantityOnHand * checkC.AveragePrice;
+            var totalAssets = checkC.Funding + checkC.QuantityOnHand * LastTradePrice;
             var netp = (totalAssets - Funds) / Funds;
             var diffTimeSpan = endDate.Subtract(start);
             var perday = netp / (decimal)diffTimeSpan.TotalDays;
 
             Trace.WriteLine(
-                $"end funding:{checkC.Funding:C} size:{checkC.QuantityOnHand:F} ave price:{checkC.AveragePrice:F} total assets:{totalAssets:C}");
+                $"{Symbol} end funding:{checkC.Funding:C} size:{checkC.QuantityOnHand:F} ave price:{checkC.AveragePrice:F} total assets:{totalAssets:C}");
             Trace.WriteLine($"total funds:{(checkC.Funding - Funds) / Funds:P} net with assets:{netp:P} ");
             Trace.WriteLine($"average per year:{perday * 365:P} per month:{perday * 30:P} per day:{perday:P}");
             Trace.WriteLine("DONE");

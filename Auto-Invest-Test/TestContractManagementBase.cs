@@ -15,6 +15,7 @@ public class TestContractManagementBase
     protected decimal Funds = 1000;
     protected decimal TradePercentage = 10;
     protected decimal InitialSize;
+    protected decimal LastTradePrice;
     private const uint SafetyBands = 10;
     protected decimal TrailingOffset = 1;
     protected decimal MarginProtection = 0.01M;
@@ -94,6 +95,7 @@ public class TestContractManagementBase
                 Position = trade,
                 Symbol = Symbol
             });
+            LastTradePrice = trade;
 
             previousTrade = trade;
         }

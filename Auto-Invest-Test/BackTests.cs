@@ -116,7 +116,7 @@ namespace Auto_Invest_Test
             var start = new DateTime(2016, 2, 1);
             var endDate = new DateTime(2022, 4, 10);
 
-            await RunTest(start, endDate, TickValues);
+            await RunTest(start, endDate, PolygonValues);
         }
 
         [Fact]
@@ -130,7 +130,7 @@ namespace Auto_Invest_Test
             var start = new DateTime(2007, 4, 1);
             var endDate = new DateTime(2022, 4, 10);
 
-            await RunTest(start, endDate, TickValues);
+            await RunTest(start, endDate, PolygonValues);
         }
 
         [Fact]

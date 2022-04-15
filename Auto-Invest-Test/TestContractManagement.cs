@@ -19,21 +19,8 @@ namespace Auto_Invest_Test
         AsA = "Trader",
         IWant = "To Automate my trades",
         SoThat = "I can have automatic trades")]
-    public class TestContractManagement
+    public class TestContractManagement : TestContractManagementBase
     {
-        private const string SYMBOL = "SPGI";
-        private decimal _funds = 1000;
-        private decimal _tradeQty = 10;
-        private decimal _initialAmount;
-        private uint _safetyBands = 10;
-        private decimal _trailing = 1;
-        private decimal _marginProtection = 0.01M;
-        private Contract _contract;
-        private readonly Mock<IContractClient> _contractClientMock = new();
-        private ContractManager _manager;
-        private TrailingBuySellStrategy _strategy;
-        private Dictionary<int, StopLimit> _stopLimits;
-
         public TestContractManagement()
         {
             Configurator.Processors.ConsoleReport.Enable();
@@ -42,26 +29,26 @@ namespace Auto_Invest_Test
 
         public void the_limit_order_update_should_be_called_more_than_once(ActionSide side, int times)
         {
-            var orderId = side == ActionSide.Sell ? _contract.TrailingSellOrderId : _contract.TrailingBuyOrderId;
-            _contractClientMock.Verify(_ => _.PlaceStopLimit(It.Is<StopLimit>(l =>
+            var orderId = side == ActionSide.Sell ? Contract.TrailingSellOrderId : Contract.TrailingBuyOrderId;
+            ContractClientMock.Verify(_ => _.PlaceStopLimit(It.Is<StopLimit>(l =>
                 l.Side == side &&
                 l.OrderId == orderId)), Times.AtLeast(times));
         }
 
-        public void the_funds_should_be(decimal funds) => Round(_contract.Funding, 2).ShouldBe(funds);
+        public void the_funds_should_be(decimal funds) => Round(Contract.Funding, 2).ShouldBe(funds);
 
-        public void the_quantity_should_be(decimal amount) => Round(_contract.QuantityOnHand, 2).ShouldBe(amount);
+        public void the_quantity_should_be(decimal amount) => Round(Contract.QuantityOnHand, 2).ShouldBe(amount);
 
-        public void there_should_be_no_sell_limit_value() => _contract.SellOrderLimit.ShouldBe(-1);
+        public void there_should_be_no_sell_limit_value() => Contract.SellOrderLimit.ShouldBe(-1);
 
-        public void there_should_be_no_buy_limit_value() => _contract.BuyOrderLimit.ShouldBe(-1);
+        public void there_should_be_no_buy_limit_value() => Contract.BuyOrderLimit.ShouldBe(-1);
 
         public void the_safety_bands_should_be(ActionSide side, params decimal[] bands)
         {
-            _contract.EmergencyOrders.Count().ShouldBe(bands.Length);
+            Contract.EmergencyOrders.Count().ShouldBe(bands.Length);
 
-            _contract.EmergencyOrders.ShouldAllBe(_ => _.Action == side);
-            var prices = _contract.EmergencyOrders.Select(_ => Math.Round(_.PricePerUnit, 2)).ToArray();
+            Contract.EmergencyOrders.ShouldAllBe(_ => _.Action == side);
+            var prices = Contract.EmergencyOrders.Select(_ => Math.Round(_.PricePerUnit, 2)).ToArray();
 
             foreach (var band in bands)
             {
@@ -69,120 +56,46 @@ namespace Auto_Invest_Test
             }
         }
 
-        public void given_funds_of(decimal funds) { _funds = funds; }
+        public void given_funds_of(decimal funds) { Funds = funds; }
 
-        public void given_trade_qty_of(decimal amount) { _tradeQty = amount; }
+        public void given_trade_qty_of(decimal amount) { TradePercentage = amount; }
 
-        public void given_initial_amount_of(decimal amount) { _initialAmount = amount; }
+        public void given_initial_amount_of(decimal amount) { InitialSize = amount; }
 
-        public void given_trailing_of(decimal trailing) { _trailing = trailing; }
+        public void given_trailing_of(decimal trailing) { TrailingOffset = trailing; }
 
-        public void the_stock_on_hand_should_be_more_than(decimal value) => _contract.QuantityOnHand.ShouldBeGreaterThan(value);
+        public void the_stock_on_hand_should_be_more_than(decimal value) => Contract.QuantityOnHand.ShouldBeGreaterThan(value);
 
-        public void the_stock_on_hand_should_be_less_than(decimal value) => _contract.QuantityOnHand.ShouldBeLessThan(value);
+        public void the_stock_on_hand_should_be_less_than(decimal value) => Contract.QuantityOnHand.ShouldBeLessThan(value);
 
-        public void the_funding_should_be_less_than(decimal funding) => _contract.Funding.ShouldBeLessThan(funding);
+        public void the_funding_should_be_less_than(decimal funding) => Contract.Funding.ShouldBeLessThan(funding);
 
-        public void the_average_should_be(decimal value) => Round(_contract.AveragePrice, 2).ShouldBe(value);
+        public void the_average_should_be(decimal value) => Round(Contract.AveragePrice, 2).ShouldBe(value);
 
-        public void the_funding_should_be_more_than(decimal funding) => _contract.Funding.ShouldBeGreaterThan(funding);
+        public void the_funding_should_be_more_than(decimal funding) => Contract.Funding.ShouldBeGreaterThan(funding);
 
         public void the_upper_bound_should_be_more_than(decimal value) =>
-            _contract.UpperBound.ShouldBeGreaterThan(value);
+            Contract.UpperBound.ShouldBeGreaterThan(value);
 
         public void the_lower_bound_should_be_less_than(decimal value) =>
-            _contract.LowerBound.ShouldBeLessThan(value);
+            Contract.LowerBound.ShouldBeLessThan(value);
 
-        public void the_upper_bound_should_be_less_than(decimal value) => _contract.UpperBound.ShouldBeLessThan(value);
+        public void the_upper_bound_should_be_less_than(decimal value) => Contract.UpperBound.ShouldBeLessThan(value);
 
-        public void the_runstate_should_be(RunState runState) => _contract.RunState.ShouldBe(runState);
+        public void the_runstate_should_be(RunState runState) => Contract.RunState.ShouldBe(runState);
 
         public void the_trailing_stop_limit_should_be(ActionSide side, decimal stopLimit)
         {
-            _stopLimits.Count.ShouldBe(1);
-            var limit = _stopLimits.First().Value;
+            StopLimits.Count.ShouldBe(1);
+            var limit = StopLimits.First().Value;
             limit.Side.ShouldBe(side);
             if (side == ActionSide.Sell) limit.StopPrice.ShouldBeLessThan(stopLimit);
             else limit.StopPrice.ShouldBeGreaterThan(stopLimit);
-            if (side == ActionSide.Sell) _contract.TrailingSellOrderId.ShouldBeGreaterThan(0);
-            else _contract.TrailingBuyOrderId.ShouldBeGreaterThan(0);
+            if (side == ActionSide.Sell) Contract.TrailingSellOrderId.ShouldBeGreaterThan(0);
+            else Contract.TrailingBuyOrderId.ShouldBeGreaterThan(0);
         }
 
         public async Task when_trades_are(params decimal[] trades) => await simulate_trades(trades);
-
-        public async Task simulate_trades(IEnumerable<decimal> trades)
-        {
-            IOrderCompletion orderCompletion = null;
-            var orderId = 1;
-            _stopLimits = new Dictionary<int, StopLimit>();
-
-            _contract = new Contract(SYMBOL, _funds, _trailing, _tradeQty, _initialAmount, safetyBands: _safetyBands, marginProtection: _marginProtection);
-            _contractClientMock
-                .Setup(_ => _.ListenForCompletion(SYMBOL, It.IsAny<IOrderCompletion>()))
-                .Callback((string s, IOrderCompletion o) => { orderCompletion = o; });
-            _contractClientMock
-                .Setup(_ => _.PlaceStopLimit(It.IsAny<StopLimit>()))
-                .ReturnsAsync((StopLimit l) =>
-                {
-                    if (l.OrderId < 1) l.OrderId = orderId++;
-                    _stopLimits[l.OrderId] = l;
-                    return new ContractResult { OrderId = l.OrderId };
-                });
-            _contractClientMock
-                .Setup(_ => _.CancelOrder(It.IsAny<int>()))
-                .Callback(async (int id) => await Task.Run(() =>
-                {
-                    if (_stopLimits.ContainsKey(id))
-                        _stopLimits.Remove(id);
-                }));
-
-            TrailingBuySellStrategy.MovingAverageSize = 1;
-            _manager = new ContractManager(_contractClientMock.Object);
-            _manager.RegisterContract(_contract);
-            _strategy = new TrailingBuySellStrategy(_manager);
-
-            var previousTrade = -1M;
-            foreach (var trade in trades)
-            {
-                if (previousTrade == -1) previousTrade = trade;
-
-                var min = Min(trade, previousTrade);
-                var max = Max(trade, previousTrade);
-                var limits = _stopLimits.Values.ToArray();
-
-                foreach (var limit in limits)
-                {
-                    if (limit == null) continue;
-                    if (limit.StopPrice < min || limit.StopPrice > max) continue;
-                    var slippage = limit.Side == ActionSide.Sell ? -0.1M : 0.1M;
-                    var price = limit.StopPrice + slippage;
-                    var orderCost = price * limit.Quantity;
-                    var commission = Max(1M, limit.Quantity * 0.02M);
-
-                    await orderCompletion?.OrderCompleted(new CompletedOrder
-                    {
-                        OrderId = limit.OrderId,
-                        Commission = commission,
-                        CostOfOrder = orderCost,
-                        PricePerUnit = price,
-                        Qty = limit.Quantity,
-                        Side = limit.Side,
-                        Symbol = limit.Symbol
-                    });
-
-                    _stopLimits.Remove(limit.OrderId);
-                }
-
-                await _strategy.Tick(new TickPosition
-                {
-                    Position = trade,
-                    Symbol = SYMBOL
-                });
-
-                previousTrade = trade;
-            }
-            _contract = await _manager.GetContractState(SYMBOL);
-        }
 
         [Fact]
         public void upper_and_lower_bounds_need_to_be_correct()
@@ -355,142 +268,9 @@ namespace Auto_Invest_Test
                 .BDDfy("do not short stock if there is not enough purchase power");
         }
 
-        public IEnumerable<decimal> PolygonValues(string symbol, DateTime start, DateTime endDate)
-        {
-            var basePath = Path.GetFullPath("../../../../", Environment.CurrentDirectory);
-            var dataPath = Path.Join(basePath, "Data\\Polygon-SPGI");
-            var random = new Random((int)DateTime.UtcNow.Ticks);
-
-            var dateIndex = start;
-            while (true)
-            {
-                if (dateIndex >= endDate) break;
-
-                var jsonFileName = FileName(dateIndex);
-                dateIndex = dateIndex.AddDays(1);
-
-                if (!File.Exists(jsonFileName)) continue;
-
-                var content = File.ReadAllText(jsonFileName);
-                if (string.IsNullOrWhiteSpace(content)) continue;
-
-                var jsonData = DeserializeObject<TickFileData>(content);
-                if (jsonData?.results == null || !jsonData.results.Any()) continue;
-
-                foreach (var candle in jsonData.results)
-                {
-                    yield return candle.o;
-
-                    if (random.Next(0, 2) == 0)
-                    {
-                        yield return candle.l;
-                        yield return candle.h;
-                    }
-                    else
-                    {
-                        yield return candle.h;
-                        yield return candle.l;
-                    }
-
-                    yield return candle.c;
-                }
-
-            }
-
-            string FileName(DateTime fileDate) => Path.Join(dataPath, $"{symbol.ToUpper()}-{fileDate:yyyy-MM-dd}.json");
-        }
-
-        public IEnumerable<decimal> TickValues(string symbol, DateTime start, DateTime endDate)
-        {
-            var basePath = Path.GetFullPath("../../../../", Environment.CurrentDirectory);
-            var dataPath = Path.Join(basePath, "Data\\Tick-SPGI");
-            var random = new Random((int)DateTime.UtcNow.Ticks);
-
-            var dateIndex = start;
-            while (true)
-            {
-                if (dateIndex > endDate) break;
-
-                var fileName = FileName(dateIndex);
-                dateIndex = dateIndex.AddMonths(1);
-
-                if (!File.Exists(fileName)) continue;
-
-                using var stream = File.OpenRead(fileName);
-                var reader = new StreamReader(stream);
-                reader.ReadLine();
-                var line = reader.ReadLine();
-
-                while (!string.IsNullOrWhiteSpace(line))
-                {
-                    var parts = line.Split(',');
-                    if (parts.Length != 7)
-                    {
-                        line = reader.ReadLine();
-                        continue;
-                    }
-
-                    yield return decimal.Parse(parts[2]);
-
-                    if (random.Next(0, 2) == 0)
-                    {
-                        yield return decimal.Parse(parts[4]);
-                        yield return decimal.Parse(parts[3]);
-                    }
-                    else
-                    {
-                        yield return decimal.Parse(parts[3]);
-                        yield return decimal.Parse(parts[4]);
-                    }
-
-                    yield return decimal.Parse(parts[5]);
-
-                    line = reader.ReadLine();
-                }
-            }
-
-            string FileName(DateTime fileDate) => Path.Join(dataPath, $"{symbol.ToUpper()}-{fileDate:yyyy-MM}.csv");
-        }
-
         // [Fact]
-        public async Task back_testing_SPGI_polygon()
-        {
-            _trailing = 0.1M;
-            _marginProtection = 1M;
-            _funds = 1000M;
-
-            Trace.WriteLine($"start funding:{_funds:C} ");
-
-            var enumTicks = PolygonValues("SPGI", new DateTime(2021, 2, 1), new DateTime(2022, 4, 10));
-            await simulate_trades(enumTicks);
-
-            var checkC = await _manager.GetContractState(SYMBOL);
-            var netp = (checkC.Funding + (checkC.QuantityOnHand * checkC.AveragePrice) - _funds) / _funds;
-
-            Trace.WriteLine($"end funding:{checkC.Funding:C} qty:{checkC.QuantityOnHand:F} ave:{checkC.AveragePrice:F} total assets{checkC.Funding + checkC.QuantityOnHand * checkC.AveragePrice:C}");
-            Trace.WriteLine($"total % :{(checkC.Funding - _funds) / _funds:P} net with assets % :{netp:P} ");
-            Trace.WriteLine("DONE");
-        }
 
         //[Fact]
-        public async Task back_testing_SPGI_tick()
-        {
-            _trailing = 0.1M;
-            _marginProtection = 1M;
-            _funds = 1000M;
-
-            Trace.WriteLine($"start funding:{_funds:C} ");
-
-            var enumTicks = TickValues("SPGI", new DateTime(2019, 12, 1), new DateTime(2022, 3, 1));
-            await simulate_trades(enumTicks);
-
-            var checkC = await _manager.GetContractState(SYMBOL);
-            var netp = (checkC.Funding + (checkC.QuantityOnHand * checkC.AveragePrice) - _funds) / _funds;
-
-            Trace.WriteLine($"end funding:{checkC.Funding:C} qty:{checkC.QuantityOnHand:F} ave:{checkC.AveragePrice:F} total assets{checkC.Funding + checkC.QuantityOnHand * checkC.AveragePrice:C}");
-            Trace.WriteLine($"total % :{(checkC.Funding - _funds) / _funds:P} net with assets % :{netp:P} ");
-            Trace.WriteLine("DONE");
-        }
     }
 
 }

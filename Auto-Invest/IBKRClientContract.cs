@@ -85,7 +85,7 @@ namespace Auto_Invest
                 if (_commission.ContainsKey(details.Execution.ExecId))
                 {
                     progress.Commission = _commission[details.Execution.ExecId];
-                    progress.Progress |= ProgressStatus.Commision;
+                    progress.Progress |= ProgressStatus.Commission;
                 }
 
                 FireIfComplete(progress);
@@ -97,7 +97,7 @@ namespace Auto_Invest
                 {
                     var progress = _orders.Values.First(_ => _.ExecId == report.ExecId);
                     progress.Commission = report.Commission;
-                    progress.Progress |= ProgressStatus.Commision;
+                    progress.Progress |= ProgressStatus.Commission;
 
                     FireIfComplete(progress);
                     return;
@@ -108,7 +108,7 @@ namespace Auto_Invest
 
             void FireIfComplete(OrderProgress progress)
             {
-                if (progress.Progress != (ProgressStatus.Placed | ProgressStatus.Commision | ProgressStatus.Execution)) return;
+                if (progress.Progress != (ProgressStatus.Placed | ProgressStatus.Commission | ProgressStatus.Execution)) return;
                 orderCompletion.OrderCompleted(new CompletedOrder
                 {
                     Commission = (decimal)progress.Commission,

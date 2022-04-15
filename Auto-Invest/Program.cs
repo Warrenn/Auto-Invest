@@ -1,76 +1,103 @@
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Hosting;
+using WebSocket4Net;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Security.Authentication;
+using System.Threading.Tasks;
+using Auto_Invest_Strategy;
+using CoreBot;
 using IBApi;
+using Contract = Auto_Invest_Strategy.Contract;
+using static Newtonsoft.Json.JsonConvert;
 
 namespace Auto_Invest
 {
     public class Program
     {
-        public static string GetName(Type t)
-        {
-            if (typeof(int) == t) return "int";
-            if (typeof(long) == t) return "long";
-            if (typeof(double) == t) return "double";
-            if (typeof(string) == t) return "string";
-            if (typeof(bool) == t) return "bool";
-            if (typeof(char) == t) return "char";
+        private WebSocket websocket;
+        private ContractManager contractManager;
+        private Contract contract;
+        private IContractClient contractClient;
+        private TrailingBuySellStrategy strategy;
+        private IBClient ibClient;
 
-            if (t.Namespace == "IBApi") return t.Name;
-            if (t.IsGenericType && t.GetGenericTypeDefinition() == typeof(KeyValuePair<,>))
-                return $"KeyValuePair<{GetName(t.GetGenericArguments()[0])}, {GetName(t.GetGenericArguments()[1])}>";
-            if (t.IsGenericType && t.GetGenericTypeDefinition() == typeof(Dictionary<,>))
-                return $"Dictionary<{GetName(t.GetGenericArguments()[0])}, {GetName(t.GetGenericArguments()[1])}>";
-            if (t.IsGenericType && t.GetGenericTypeDefinition() == typeof(HashSet<>))
-                return $"HashSet<{GetName(t.GetGenericArguments()[0])}>";
-            return t.FullName;
-        }
         public static void Main(string[] args)
         {
-            var classT = typeof(EWrapper);
+            new Program().Start();
+        }
 
-            foreach (var methodInfo in classT.GetMethods())
+        public void Start()
+        {
+            this.contract = new Contract(
+                "SPGI",
+                100M,
+                0.01M,
+                1,
+                marginProtection: 2M);
+
+            ibClient = new IBClient(1, "127.0.0.1", 7497);
+            ibClient.ConnectAckEvent += IbClient_ConnectAckEvent;
+            ibClient.Connect();
+            Console.ReadKey();
+        }
+
+        private void IbClient_ConnectAckEvent()
+        {
+            this.contractClient = new IBKRClientContract(ibClient);
+            contractManager = new ContractManager(contractClient);
+            strategy = new TrailingBuySellStrategy(contractManager);
+            contractManager.RegisterContract(contract);
+
+            ibClient.Run();
+            
+            this.websocket = new WebSocket("wss://socket.polygon.io/stocks", sslProtocols: SslProtocols.Tls12 | SslProtocols.Tls11 | SslProtocols.Tls);
+            this.websocket.Opened += websocket_Opened;
+            this.websocket.Error += websocket_Error;
+            this.websocket.Closed += websocket_Closed;
+            this.websocket.MessageReceived += websocket_MessageReceived;
+            this.websocket.Open();
+            Console.ReadKey();
+        }
+
+        private void websocket_Opened(object sender, EventArgs e)
+        {
+            var polygonApiKey = Environment.GetEnvironmentVariable("POLYGON_APIKEY");
+            Console.WriteLine("Connected!");
+            this.websocket.Send($"{{\"action\":\"auth\",\"params\":\"{polygonApiKey}\"}}");
+            this.websocket.Send("{\"action\":\"subscribe\",\"params\":\"A.SPGI\"}");
+        }
+
+        private void websocket_Error(object sender, SuperSocket.ClientEngine.ErrorEventArgs e)
+        {
+            Console.WriteLine("WebSocket Error");
+            Console.WriteLine(e.Exception.Message);
+        }
+        private void websocket_Closed(object sender, EventArgs e)
+        {
+            Console.WriteLine("Connection Closed...");
+            // Add Reconnect logic... this.Start()
+        }
+        private void websocket_MessageReceived(object sender, MessageReceivedEventArgs e)
+        {
+            var message = e.Message;
+            Console.WriteLine(message);
+
+            if (string.IsNullOrWhiteSpace(message)) return;
+
+            var responses = DeserializeObject<WebSocketResponse[]>(message);
+
+            foreach (var response in responses)
             {
-                var parameters = methodInfo.GetParameters();
-
-                if (parameters.Length < 2) continue;
-
-                Console.WriteLine($"public class {methodInfo.Name.ToUpper()[0]}{methodInfo.Name.Substring(1)}Class {{");
-                foreach (var parameterInfo in parameters)
+                if (response == null || response.c == 0) continue;
+                strategy.Tick(new TickPosition
                 {
-                    Console.WriteLine($"    public {GetName(parameterInfo.ParameterType)} {parameterInfo.Name.ToUpper()[0]}{parameterInfo.Name.Substring(1)} {{ get; set; }}");
-                }
-                Console.WriteLine($"}}\r\n");
+                    Symbol = "SPGI",
+                    Position = response.c
+
+                }).Start();
             }
-
-            foreach (var methodInfo in classT.GetMethods())
-            {
-                var methodName = $"{methodInfo.Name.ToUpper()[0]}{methodInfo.Name.Substring(1)}";
-
-                var parameters = methodInfo.GetParameters();
-
-                if (parameters.Length == 0)
-                {
-                    Console.WriteLine($"public event Action {methodName}Event;");
-                    Console.WriteLine($"public void {methodInfo.Name}() => Post({methodName}Event);");
-                    continue;
-                }
-
-                if (parameters.Length == 1)
-                {
-                    Console.WriteLine($"public event Action<{GetName(parameters[0].ParameterType)}> {methodName}Event;");
-                    Console.WriteLine($"public void {methodInfo.Name}({GetName(parameters[0].ParameterType)} {parameters[0].Name}) => Post({methodName}Event, {parameters[0].Name});");
-                    continue;
-                }
-
-                Console.WriteLine($"public event Action<{methodName}Class> {methodName}Event;");
-                Console.WriteLine($"public void {methodInfo.Name}({string.Join(", ", parameters.Select(p => $"{GetName(p.ParameterType)} {p.Name}").ToArray())}) => Post({methodName}Event, new {methodName}Class {{{string.Join(",", parameters.Select(p => $"\r\n{p.Name.ToUpper()[0]}{p.Name.Substring(1)} = {p.Name}").ToArray())}\r\n}});");
-
-                Console.WriteLine();
-            }
-
         }
 
         public static IHostBuilder CreateHostBuilder(string[] args) =>

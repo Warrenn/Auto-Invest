@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
 using Xunit;
@@ -16,13 +15,13 @@ namespace Auto_Invest_Test
         public IEnumerable<decimal> PolygonValues(DateTime start, DateTime endDate)
         {
             var basePath = Path.GetFullPath("../../../../", Environment.CurrentDirectory);
-            var dataPath = Path.Join(basePath, $"Data\\Polygon-{Symbol}");
+            var dataPath = Path.Join(basePath, "Data", $"Polygon-{Symbol}");
             var random = new Random((int)DateTime.UtcNow.Ticks);
 
             var dateIndex = start;
             while (true)
             {
-                if (dateIndex >= endDate) break;
+                if (dateIndex > endDate) break;
 
                 var jsonFileName = FileName(dateIndex);
                 dateIndex = dateIndex.AddDays(1);
@@ -61,7 +60,7 @@ namespace Auto_Invest_Test
         public IEnumerable<decimal> TickValues(DateTime start, DateTime endDate)
         {
             var basePath = Path.GetFullPath("../../../../", Environment.CurrentDirectory);
-            var dataPath = Path.Join(basePath, $"Data\\Tick-{Symbol}");
+            var dataPath = Path.Join(basePath, "Data", $"Tick-{Symbol}");
             var random = new Random((int)DateTime.UtcNow.Ticks);
 
             var dateIndex = start;
@@ -147,7 +146,7 @@ namespace Auto_Invest_Test
             await RunTest(start, endDate, TickValues);
         }
 
-        private async Task RunTest(DateTime start, DateTime endDate,Func<DateTime,DateTime,IEnumerable<decimal>> getValues)
+        private async Task RunTest(DateTime start, DateTime endDate, Func<DateTime, DateTime, IEnumerable<decimal>> getValues)
         {
             Trace.WriteLine($"start funding:{Funds:C} ");
 
@@ -161,7 +160,7 @@ namespace Auto_Invest_Test
             var perday = netp / (decimal)diffTimeSpan.TotalDays;
 
             Trace.WriteLine(
-                $"end funding:{checkC.Funding:C} size:{checkC.QuantityOnHand:F} ave price:{checkC.AveragePrice:F} total assets{totalAssets:C}");
+                $"end funding:{checkC.Funding:C} size:{checkC.QuantityOnHand:F} ave price:{checkC.AveragePrice:F} total assets:{totalAssets:C}");
             Trace.WriteLine($"total funds:{(checkC.Funding - Funds) / Funds:P} net with assets:{netp:P} ");
             Trace.WriteLine($"average per year:{perday * 365:P} per month:{perday * 30:P} per day:{perday:P}");
             Trace.WriteLine("DONE");

@@ -167,36 +167,20 @@ Resources:
             rpm -Uvh https://packages.microsoft.com/config/centos/7/packages-microsoft-prod.rpm
             yum update -y
             yum install -y java-1.8.0-openjdk aspnetcore-runtime-6.0 unzip amazon-cloudwatch-agent
-            
-            cd /tmp/
             aws s3 cp s3://${S3ArtifactBucket}${ArtifactPath}/clientportal.gw.zip clientportal.gw.zip --region ${AWS::Region}
             aws s3 cp s3://${S3ArtifactBucket}${ArtifactPath}/api.ibkr.cer api.ibkr.cer --region ${AWS::Region}
-            aws s3 cp s3://${S3ArtifactBucket}${ArtifactPath}/chromedriver_linux64.zip chromedriver_linux64.zip --region ${AWS::Region}
-            aws s3 cp s3://${S3ArtifactBucket}${ArtifactPath}/install-google-chrome.sh install-google-chrome.sh --region ${AWS::Region}
-            aws s3 cp s3://${S3ArtifactBucket}${ArtifactPath}/ibeam.zip ibeam.zip --region ${AWS::Region}
-
-            unzip chromedriver_linux64.zip
-            mv chromedriver /usr/bin/chromedriver
-
-            chmod +x install-google-chrome.sh
-            sh ./install-google-chrome.sh
-            mv /usr/bin/google-chrome-stable /usr/bin/google-chrome
-
-            unzip ibeam.zip -d /srv
-            pip3 install --upgrade pip setuptools wheel
-
             cp api.ibkr.cer /etc/ssl/certs/api.ibkr.cer
             unzip clientportal.gw.zip -d /clientportal
             rm /clientportal/root/conf.yaml
-            cat <<'EOF' > /clientportal/root/conf.yaml
+            cat <<'EOF' >> /clientportal/root/conf.yaml
               ip2loc: "US"
               proxyRemoteSsl: true
               proxyRemoteHost: "https://api.ibkr.com"
               listenPort: 5000
               listenSsl: true
               svcEnvironment: "v1"
-              sslCert: "cacert.jks"
-              sslPwd: "password"
+              sslCert: "vertx.jks"
+              sslPwd: "mywebapi"
               authDelay: 3000
               portalBaseURL: ""
               serverOptions:
@@ -220,51 +204,6 @@ Resources:
                 deny:
                   - 212.90.324.10
             EOF
-            mkdir /certificates
-            cat <<'EOF' > /clientportal/root/san.tmpl
-                [req]
-                default_bits = 2048
-                distinguished_name = req_distinguished_name
-                req_extensions = req_ext
-                x509_extensions = v3_req
-                prompt = no
-
-                [req_distinguished_name]
-                countryName = XX
-                stateOrProvinceName = N/A
-                localityName = N/A
-                organizationName = IBeam
-                commonName = IBeam
-
-                [req_ext]
-                subjectAltName = @alt_names
-
-                [v3_req]
-                subjectAltName = @alt_names
-
-                [alt_names]
-                IP.1 = ${!PUBLIC_IPV4}
-                DNS.1 = ${!PUBLIC_HOSTNAME}
-            EOF
-            cat <<'EOF' > /clientportal/root/generate-cert.sh
-                TOKEN=$(curl -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
-                MAC_ID=$(curl -H "X-aws-ec2-metadata-token: $TOKEN" -v http://169.254.169.254/latest/meta-data/mac)
-                PUBLIC_IPV4=$(curl -H "X-aws-ec2-metadata-token: $TOKEN" -v http://169.254.169.254/latest/meta-data/network/interfaces/macs/${!MAC_ID}/public-ipv4s)
-                PUBLIC_HOSTNAME=$(curl -H "X-aws-ec2-metadata-token: $TOKEN" -v http://169.254.169.254/latest/meta-data/network/interfaces/macs/${!MAC_ID}/public-hostname)
-
-                touch /clientportal/root/san.cnf
-                chmod 777 /clientportal/root/san.cnf
-                PUBLIC_IPV4=$PUBLIC_IPV4 PUBLIC_HOSTNAME=$PUBLIC_HOSTNAME envsubst < /clientportal/root/san.tmpl > /clientportal/root/san.cnf
-
-                openssl req -x509 -days 730 -newkey rsa:2048 -keyout /clientportal/root/key.pem -out /clientportal/root/cert.pem -config /clientportal/root/san.cnf -passout pass:"password"
-                cat /clientportal/root/key.pem /clientportal/root/cert.pem > /clientportal/root/cacert.pem
-                openssl pkcs12 -export -in /clientportal/root/cacert.pem -out /clientportal/root/cacert.p12 -passin pass:'password' -passout pass:'password' 
-                echo "password" | keytool -importkeystore -srckeystore /clientportal/root/cacert.p12 -srcstoretype pkcs12 -destkeystore /clientportal/root/cacert.jks -storepass password -deststoretype pkcs12 
-
-                cp /clientportal/root/key.pem /etc/ssl/certs/key.pem
-                cp /clientportal/root/cert.pem /etc/ssl/certs/cert.pem
-            EOF
-            chmod +x /clientportal/root/generate-cert.sh
             cat <<'EOF' >> /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent-schema.json
               {
                 "agent": {
@@ -287,9 +226,15 @@ Resources:
             EOF
             cd /clientportal
             /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -a fetch-config -m ec2 -s -c file:/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent-schema.json
-
+            touch out.txt
+            chmod 777 out.txt
+            sudo INSTANCE_ID=$INSTANCE_ID VAR_1=$VAR_1 envsubst < template.tmpl > out.txt
             systemctl restart amazon-cloudwatch-agent
-            # sh bin/run.sh root/conf.yaml
+            sh bin/run.sh root/conf.yaml
+            TOKEN=$(curl -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
+            INSTANCE_ID=$(curl -H "X-aws-ec2-metadata-token: $TOKEN" -v http://169.254.169.254/latest/meta-data/mac)
+            INSTANCE_ID=$(curl -H "X-aws-ec2-metadata-token: $TOKEN" -v http://169.254.169.254/latest/meta-data/network/interfaces/macs/0e:e9:33:b9:da:d2/public-ipv4s)
+            network/interfaces/macs/mac/public-hostname
   GatewayLog:
     Type: AWS::Logs::LogGroup
     Properties:

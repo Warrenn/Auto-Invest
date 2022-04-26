@@ -16,6 +16,15 @@ namespace Auto_Invest_Strategy
         private readonly IDictionary<string, IContractEditor> _contractEditors = new Dictionary<string, IContractEditor>();
         private IOrderFilledProcess _orderFilledProcess;
 
+        public event Func<TriggerDetails, Task> CreateTriggerEvent = _ => Task.CompletedTask;
+        public event Func<MarketOrder, Task> PlaceTrailingBuyOrderEvent = _ => Task.CompletedTask;
+        public event Func<MarketOrder, Task> PlaceTrailingSellOrderEvent = _ => Task.CompletedTask;
+        public event Func<MarketOrder, Task> PlaceEmergencySellOrderEvent = _ => Task.CompletedTask;
+        public event Func<MarketOrder, Task> PlaceEmergencyBuyOrderEvent = _ => Task.CompletedTask;
+        public event Func<ActionDetails, Task> TrailingBuyCompleteEvent = _ => Task.CompletedTask;
+        public event Func<ActionDetails, Task> TrailingSellCompleteEvent = _ => Task.CompletedTask;
+        public event Func<EmergencyActionDetails, Task> EmergencyActionCompleteEvent = _ => Task.CompletedTask;
+
         public ContractManager(IContractClient contractClient)
         {
             _contractClient = contractClient;
@@ -41,7 +50,7 @@ namespace Auto_Invest_Strategy
             editor.SetUpperBound(details.UpperLimit);
             editor.SetLowerBound(details.LowerLimit);
             editor.SetRunState(RunState.TriggerRun);
-            await Task.Run(() => { });
+            await CreateTriggerEvent(details);
         }
 
         public async Task<decimal> GetContractsAverageValue(string symbol)
@@ -77,6 +86,7 @@ namespace Auto_Invest_Strategy
             });
 
             editor.SetTrailingBuyOrderId(orderResult.OrderId);
+            await PlaceTrailingBuyOrderEvent(order);
         }
 
 
@@ -107,6 +117,7 @@ namespace Auto_Invest_Strategy
             });
 
             editor.SetTrailingSellOrderId(orderResult.OrderId);
+            await PlaceTrailingSellOrderEvent(order);
         }
 
         public async Task PlaceEmergencySellOrder(MarketOrder order)
@@ -132,6 +143,7 @@ namespace Auto_Invest_Strategy
                 OrderId = orderResult.OrderId,
                 PricePerUnit = order.PricePerUnit
             });
+            await PlaceEmergencySellOrderEvent(order);
         }
 
         public async Task PlaceEmergencyBuyOrder(MarketOrder order)
@@ -157,6 +169,7 @@ namespace Auto_Invest_Strategy
                 OrderId = orderResult.OrderId,
                 PricePerUnit = order.PricePerUnit
             });
+            await PlaceEmergencyBuyOrderEvent(order);
         }
 
         public void InitializeContract(TickPosition tick)
@@ -193,7 +206,7 @@ namespace Auto_Invest_Strategy
             editor.SetBuyLimit(-1);
 
             BuyComplete(details, contract, editor);
-            await Task.Run(() => { });
+            await TrailingBuyCompleteEvent(details);
         }
 
         public void BuyComplete(ActionDetails details, Contract contract, IContractEditor editor)
@@ -233,7 +246,7 @@ namespace Auto_Invest_Strategy
             editor.SetSellLimit(-1);
 
             SellComplete(details, contract, editor);
-            await Task.Run(() => { });
+            await TrailingSellCompleteEvent(details);
         }
 
         public void SellComplete(ActionDetails details, Contract contract, IContractEditor editor)
@@ -276,7 +289,7 @@ namespace Auto_Invest_Strategy
             }
 
             editor.RemoveEmergencyOrderId(details.OrderId);
-            await Task.Run(() => { });
+            await EmergencyActionCompleteEvent(details);
         }
 
         #endregion

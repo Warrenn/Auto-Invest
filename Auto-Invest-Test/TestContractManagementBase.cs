@@ -1,12 +1,9 @@
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
-using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using Auto_Invest_Strategy;
 using Moq;
-using Newtonsoft.Json;
 
 namespace Auto_Invest_Test;
 

@@ -150,6 +150,7 @@ namespace Auto_Invest_Test
 
         private async Task RunTest(DateTime start, DateTime endDate, Func<DateTime, DateTime, IEnumerable<decimal>> getValues)
         {
+            var before = await ContractManager.GetContractState(Symbol);
             Trace.WriteLine($"start funding:{Funds:C} ");
 
             var enumTicks = getValues(start, endDate);
@@ -164,7 +165,7 @@ namespace Auto_Invest_Test
             Trace.WriteLine(
                 $"{Symbol} end funding:{checkC.Funding:C} size:{checkC.QuantityOnHand:F} ave price:{checkC.AveragePrice:F} total assets:{totalAssets:C}");
             Trace.WriteLine($"total funds:{(checkC.Funding - Funds) / Funds:P} net with assets:{netp:P} ");
-            Trace.WriteLine($"average per year:{perday * 365:P} per month:{perday * 30:P} per day:{perday:P}");
+            Trace.WriteLine($"average per year:{perday * 365:P} per month:{perday * 365/12:P} per day:{perday:P}");
             Trace.WriteLine("DONE");
         }
     }

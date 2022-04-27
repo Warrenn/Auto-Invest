@@ -13,48 +13,64 @@ Metadata:
       - E3012
 
 Parameters:
+
   VPCId:
     Type: AWS::EC2::VPC::Id
     Description: The ID of the VPC
+
   SubnetId:
     Type: AWS::EC2::Subnet::Id
     Description: The ID of the subnet in the VPC
+
   UserIp:
     Type: String
     Description: The IP address that the user is currently using to deploy the instance
+
   KeyPair:
     Type: AWS::EC2::KeyPair::KeyName
     Description: The key pair to enable ssh onto the intstance
+
   AmiId:
     Description: 
       The name of the AMI id to use for running the auto invest app
     Type: 'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
     Default: '/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2'
+
   InstanceType:
     Description: 
       The instance type the SQS monitor will be using
     Type: String
     Default: t3.micro
+
   SettingsPrefix:
     Type: String
     Description: The parameter store prefix for the settings
     Default: 'auto-invest'
+
   LogRetention:
     Type: Number
     Description: The number of days to keep the cloudwatch logs
     Default: 30
+
   LogGroupPrefix:
     Type: String
     Description: The Prefix in front of the log group name
     Default: auto-invest
+
   S3ArtifactBucket:
     Type: String
     Description: The Bucket the deployment artifacts are stored
     Default: insecure-artifacts-93648082bbed41458cac8d7814803d3c
+
   ArtifactPath:
     Type: String
     Description: The relative S3 path in the artifact bucket location for the artifacts
     Default: /auto-invest
+
+  EnvName:
+    Type: String
+    Description: The environment name 
+    Default: dev
     
 Resources:
 
@@ -130,15 +146,23 @@ Resources:
                 Resource: "*"
               - Effect: Allow
                 Action:
-                  - ssm:GetParameter
-                Resource: arn:aws:ssm:*:*:parameter/AmazonCloudWatch-*
-              - Effect: Allow
-                Action:
                   - S3:Get*
                 Resource: !Sub "arn:aws:s3:::${S3ArtifactBucket}${ArtifactPath}/*"               
-                # TODO: finish the pemissions to 
-                # parameter store
-                # S3 artifacts
+              - Effect: Allow
+                Action:
+                  - ssm:GetParametersByPath
+                  - ssm:GetParameters
+                  - ssm:GetParameter
+                  - ssm:ListTagsForResource
+                Resource:
+                  - arn:aws:ssm:*:*:parameter/AmazonCloudWatch-*
+                  - !Sub "arn:aws:ssm:*:*:parameter/${EnvName}/${SettingsPrefix}/*"
+                  - !Sub "arn:aws:ssm:*:*:parameter/${EnvName}/${SettingsPrefix}"
+              - Effect: Allow
+                Action:
+                  - kms:Decrypt
+                Resource: 
+                  - arn:aws:kms:*:*:key/alias/aws/ssm
 
   LaunchTemplate:
     Type: AWS::EC2::LaunchTemplate
@@ -164,31 +188,33 @@ Resources:
         UserData:
           Fn::Base64: !Sub |
             #!/bin/bash -x
+            export IBEAM_GATEWAY_DIR=/gateway
+            export OUTPUTS_DIR=/outputs
+            export ECR_REGISTRY=public.ecr.aws/x9x1s8n0
+            export EXR_REPO=busyweb/ibeam
+
             rpm -Uvh https://packages.microsoft.com/config/centos/7/packages-microsoft-prod.rpm
             yum update -y
-            yum install -y java-1.8.0-openjdk aspnetcore-runtime-6.0 unzip amazon-cloudwatch-agent
-            
-            cd /tmp/
-            aws s3 cp s3://${S3ArtifactBucket}${ArtifactPath}/clientportal.gw.zip clientportal.gw.zip --region ${AWS::Region}
+            yum install -y \
+                java-1.8.0-openjdk \
+                aspnetcore-runtime-6.0 \
+                unzip \
+                amazon-cloudwatch-agent \
+                jq \
+                docker
+
+            systemctl enable docker.service
+            systemctl start docker.service
+
+            mkdir $IBEAM_GATEWAY_DIR
+            mkdir $OUTPUTS_DIR
+
             aws s3 cp s3://${S3ArtifactBucket}${ArtifactPath}/api.ibkr.cer api.ibkr.cer --region ${AWS::Region}
-            aws s3 cp s3://${S3ArtifactBucket}${ArtifactPath}/chromedriver_linux64.zip chromedriver_linux64.zip --region ${AWS::Region}
-            aws s3 cp s3://${S3ArtifactBucket}${ArtifactPath}/install-google-chrome.sh install-google-chrome.sh --region ${AWS::Region}
-            aws s3 cp s3://${S3ArtifactBucket}${ArtifactPath}/ibeam.zip ibeam.zip --region ${AWS::Region}
 
-            unzip chromedriver_linux64.zip
-            mv chromedriver /usr/bin/chromedriver
+            export IBEAM_ACCOUNT=$(aws ssm get-parameter --name /${EnvName}/${SettingsPrefix}/ibeam_account --with-decryption --region ${AWS::Region} | jq -r '.Parameter.Value')
+            export IBEAM_PASSWORD=$(aws ssm get-parameter --name /${EnvName}/${SettingsPrefix}/ibeam_password --with-decryption --region ${AWS::Region} | jq -r '.Parameter.Value')
 
-            chmod +x install-google-chrome.sh
-            sh ./install-google-chrome.sh
-            mv /usr/bin/google-chrome-stable /usr/bin/google-chrome
-
-            unzip ibeam.zip -d /srv
-            pip3 install --upgrade pip setuptools wheel
-
-            cp api.ibkr.cer /etc/ssl/certs/api.ibkr.cer
-            unzip clientportal.gw.zip -d /clientportal
-            rm /clientportal/root/conf.yaml
-            cat <<'EOF' > /clientportal/root/conf.yaml
+            cat <<'EOF' > $IBEAM_GATEWAY_DIR/conf.yaml
               ip2loc: "US"
               proxyRemoteSsl: true
               proxyRemoteHost: "https://api.ibkr.com"
@@ -220,8 +246,8 @@ Resources:
                 deny:
                   - 212.90.324.10
             EOF
-            mkdir /certificates
-            cat <<'EOF' > /clientportal/root/san.tmpl
+
+            cat <<'EOF' > $IBEAM_GATEWAY_DIR/san.tmpl
                 [req]
                 default_bits = 2048
                 distinguished_name = req_distinguished_name
@@ -246,26 +272,31 @@ Resources:
                 IP.1 = ${!PUBLIC_IPV4}
                 DNS.1 = ${!PUBLIC_HOSTNAME}
             EOF
-            cat <<'EOF' > /clientportal/root/generate-cert.sh
+
+            cat <<'EOF' > $IBEAM_GATEWAY_DIR/generate-cert.sh
                 TOKEN=$(curl -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
                 MAC_ID=$(curl -H "X-aws-ec2-metadata-token: $TOKEN" -v http://169.254.169.254/latest/meta-data/mac)
                 PUBLIC_IPV4=$(curl -H "X-aws-ec2-metadata-token: $TOKEN" -v http://169.254.169.254/latest/meta-data/network/interfaces/macs/${!MAC_ID}/public-ipv4s)
                 PUBLIC_HOSTNAME=$(curl -H "X-aws-ec2-metadata-token: $TOKEN" -v http://169.254.169.254/latest/meta-data/network/interfaces/macs/${!MAC_ID}/public-hostname)
 
-                touch /clientportal/root/san.cnf
-                chmod 777 /clientportal/root/san.cnf
-                PUBLIC_IPV4=$PUBLIC_IPV4 PUBLIC_HOSTNAME=$PUBLIC_HOSTNAME envsubst < /clientportal/root/san.tmpl > /clientportal/root/san.cnf
+                touch $IBEAM_GATEWAY_DIR/san.cnf
+                chmod 777 $IBEAM_GATEWAY_DIR/san.cnf
+                PUBLIC_IPV4=$PUBLIC_IPV4 PUBLIC_HOSTNAME=$PUBLIC_HOSTNAME envsubst < $IBEAM_GATEWAY_DIR/san.tmpl > $IBEAM_GATEWAY_DIR/san.cnf
 
-                openssl req -x509 -days 730 -newkey rsa:2048 -keyout /clientportal/root/key.pem -out /clientportal/root/cert.pem -config /clientportal/root/san.cnf -passout pass:"password"
-                cat /clientportal/root/key.pem /clientportal/root/cert.pem > /clientportal/root/cacert.pem
-                openssl pkcs12 -export -in /clientportal/root/cacert.pem -out /clientportal/root/cacert.p12 -passin pass:'password' -passout pass:'password' 
-                echo "password" | keytool -importkeystore -srckeystore /clientportal/root/cacert.p12 -srcstoretype pkcs12 -destkeystore /clientportal/root/cacert.jks -storepass password -deststoretype pkcs12 
+                openssl req -x509 -days 730 -newkey rsa:2048 -keyout $IBEAM_GATEWAY_DIR/key.pem -out $IBEAM_GATEWAY_DIR/cert.pem -config $IBEAM_GATEWAY_DIR/san.cnf -passout pass:"password"
+                cat $IBEAM_GATEWAY_DIR/key.pem $IBEAM_GATEWAY_DIR/cert.pem > $IBEAM_GATEWAY_DIR/cacert.pem
+                openssl pkcs12 -export -in $IBEAM_GATEWAY_DIR/cacert.pem -out $IBEAM_GATEWAY_DIR/cacert.p12 -passin pass:'password' -passout pass:'password' 
+                echo "password" | keytool -importkeystore -srckeystore $IBEAM_GATEWAY_DIR/cacert.p12 -srcstoretype pkcs12 -destkeystore $IBEAM_GATEWAY_DIR/cacert.jks -storepass password -deststoretype pkcs12 
 
-                cp /clientportal/root/key.pem /etc/ssl/certs/key.pem
-                cp /clientportal/root/cert.pem /etc/ssl/certs/cert.pem
+                cp $IBEAM_GATEWAY_DIR/key.pem /etc/ssl/certs/key.pem
+                cp $IBEAM_GATEWAY_DIR/cert.pem /etc/ssl/certs/cert.pem
             EOF
-            chmod +x /clientportal/root/generate-cert.sh
-            cat <<'EOF' >> /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent-schema.json
+            chmod +x $IBEAM_GATEWAY_DIR/generate-cert.sh
+
+            cd $IBEAM_GATEWAY_DIR
+            IBEAM_GATEWAY_DIR=$IBEAM_GATEWAY_DIR . $IBEAM_GATEWAY_DIR/generate-cert.sh
+
+            cat <<'EOF' >> /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent-schema.tmpl
               {
                 "agent": {
                   "run_as_user": "root"
@@ -275,21 +306,35 @@ Resources:
                     "files": {
                       "collect_list": [
                         {
-                          "file_path": "/clientportal/logs/gw.*.log",
+                          "file_path": "${!IBEAM_GATEWAY_DIR}/logs/gw.*.log",
                           "log_group_name": "auto-invest-gateway-log",
-                          "log_stream_name": "{instance_id}"
-                        }
+                          "log_stream_name": "gateway-{instance_id}"
+                        },
+                        {
+                          "file_path": "${!OUTPUTS_DIR}/*",
+                          "log_group_name": "auto-invest-gateway-log",
+                          "log_stream_name": "outputs-{instance_id}"
+                        }                      
                       ]
                     }
                   }
                 }
               }
             EOF
-            cd /clientportal
-            /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -a fetch-config -m ec2 -s -c file:/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent-schema.json
 
+            IBEAM_GATEWAY_DIR=$IBEAM_GATEWAY_DIR OUTPUTS_DIR=$OUTPUTS_DIR envsubst < /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent-schema.tmpl > /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent-schema.json
+            /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -a fetch-config -m ec2 -s -c file:/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent-schema.json
             systemctl restart amazon-cloudwatch-agent
-            # sh bin/run.sh root/conf.yaml
+
+            aws ecr-public get-login-password --region us-east-1 | docker login --username AWS --password-stdin $ECR_REGISTRY
+            docker pull $ECR_REGISTRY/$ECR_REPO:latest
+            docker run \
+                --env IBEAM_ACCOUNT=$IBEAM_ACCOUNT \
+                --env IBEAM_PASSWORD=$IBEAM_PASSWORD \
+                --env OUTPUTS_DIR=$OUTPUTS_DIR \
+                --env IBEAM_GATEWAY_DIR=$IBEAM_GATEWAY_DIR \
+                -p 5000:5000 $ECR_REGISTRY/$ECR_REPO
+
   GatewayLog:
     Type: AWS::Logs::LogGroup
     Properties:

@@ -9,8 +9,6 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Auto-Invest-Strategy", "Aut
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Auto-Invest", "Auto-Invest\Auto-Invest.csproj", "{6F4A993A-A7A3-418F-884B-F2B17F3DFBF2}"
 EndProject
-Project("{888888A0-9F3D-457C-B088-3A5042F75D52}") = "IBeam", "IBeam\IBeam.pyproj", "{3E7F729D-8EBA-42AD-8F60-270AF3192409}"
-EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -29,8 +27,6 @@ Global
 		{6F4A993A-A7A3-418F-884B-F2B17F3DFBF2}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{6F4A993A-A7A3-418F-884B-F2B17F3DFBF2}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{6F4A993A-A7A3-418F-884B-F2B17F3DFBF2}.Release|Any CPU.Build.0 = Release|Any CPU
-		{3E7F729D-8EBA-42AD-8F60-270AF3192409}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{3E7F729D-8EBA-42AD-8F60-270AF3192409}.Release|Any CPU.ActiveCfg = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

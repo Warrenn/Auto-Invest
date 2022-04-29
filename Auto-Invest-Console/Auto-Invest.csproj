@@ -1,0 +1,30 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net6.0</TargetFramework>
+    <RootNamespace>Auto_Invest</RootNamespace>
+    <UserSecretsId>875eae98-030b-4137-8cf9-b6e5b2c543af</UserSecretsId>
+    <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
+    <DockerfileContext>.</DockerfileContext>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="Strategy\**" />
+    <Content Remove="Strategy\**" />
+    <EmbeddedResource Remove="Strategy\**" />
+    <None Remove="Strategy\**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="InteractiveBrokers.TwsClient" Version="1.0.677" />
+    <PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.10.13" />
+    <PackageReference Include="moq" Version="4.17.2" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.1" />
+    <PackageReference Include="WebSocket4Net" Version="0.15.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Auto-Invest-Strategy\Auto-Invest-Strategy.csproj" />
+  </ItemGroup>
+
+</Project>

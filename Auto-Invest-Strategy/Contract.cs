@@ -13,13 +13,12 @@ namespace Auto_Invest_Strategy
         public Contract(
             string symbol,
             decimal funding,
-            decimal tradeQuantity,
             decimal trailingOffset,
-            uint safetyBands = 10,
+            decimal tradePercentage = 0.02M,
             decimal initialQuantity = 0,
-            decimal marginSafety = 0,
             decimal averagePrice = 0,
-            decimal totalCost = 0)
+            uint safetyBands = 10,
+            decimal marginProtection = 0)
         {
             if (string.IsNullOrWhiteSpace(symbol)) throw new ArgumentNullException(nameof(symbol));
             if (funding == 0 && initialQuantity == 0) throw new ArgumentException($"{nameof(funding)} and {nameof(initialQuantity)} cannot both be 0", nameof(funding));
@@ -29,15 +28,16 @@ namespace Auto_Invest_Strategy
             Funding = funding;
             SafetyBands = safetyBands;
             QuantityOnHand = initialQuantity;
-            TrailingOffset = trailingOffset;
-            TotalCost = totalCost;
-            MarginSafety = Math.Abs(marginSafety);
-            TradeQty = Math.Abs(tradeQuantity);
+            TrailingOffset = Math.Abs(trailingOffset);
+            MarginProtection = Math.Abs(marginProtection);
+            TradePercent = Math.Abs(tradePercentage % 1);
             AveragePrice = Math.Abs(averagePrice);
 
             if (TrailingOffset < 0) TrailingOffset = 0;
-            if (MarginSafety < 0) MarginSafety = TrailingOffset;
+            if (MarginProtection < 0) MarginProtection = TrailingOffset;
             if (SafetyBands == 0) SafetyBands = 1;
+            if (TradePercent == 0) TradePercent = 1;
+            if (AveragePrice > 0 && QuantityOnHand > 0) TotalCost = QuantityOnHand * AveragePrice;
         }
 
         /// <summary>
@@ -98,17 +98,17 @@ namespace Auto_Invest_Strategy
         /// <summary>
         /// The price limit of the market that will trigger a sell order. Determined by using the offset against the market price.
         /// </summary>
-        public decimal SellOrderLimit { get; private set; }
+        public decimal SellOrderLimit { get; private set; } = -1;
 
         /// <summary>
         /// The price limit of the market that will trigger a buy order. Determined by using the offset against the market price.
         /// </summary>
-        public decimal BuyOrderLimit { get; private set; }
+        public decimal BuyOrderLimit { get; private set; } = -1;
 
         /// <summary>
         /// The amount of stock to sell or buy when the sell or buy order is triggered.
         /// </summary>
-        public decimal TradeQty { get; }
+        public decimal TradePercent { get; }
 
         /// <summary>
         /// The tracking number of the order placed for a buy order
@@ -128,7 +128,7 @@ namespace Auto_Invest_Strategy
         /// <summary>
         /// The the safety amount to offset against a margin price to avoid a margin call
         /// </summary>
-        public decimal MarginSafety { get; }
+        public decimal MarginProtection { get; }
 
         public void RegisterEditor(IRegisterContractEditor register) => register.RegisterEditor(this, new ContractEditor(this));
 

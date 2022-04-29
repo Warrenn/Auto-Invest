@@ -6,102 +6,53 @@ namespace Auto_Invest_Strategy
     public class TrailingBuySellStrategy : IOrderFilledProcess, IRecordTick
     {
         private readonly IContractManager _contractManager;
+        private readonly MovingAverage _movingAverage;
 
         private static decimal LowerLimit(decimal baseAmount, decimal offset)
-            => baseAmount - offset;
+            => baseAmount - (baseAmount * offset);
 
         private static decimal UpperLimit(decimal baseAmount, decimal offset)
-            => baseAmount + offset;
+            => baseAmount + (baseAmount * offset);
+
+        public static int MovingAverageSize { get; set; } = 20;
 
         public TrailingBuySellStrategy(IContractManager contractManager)
         {
             _contractManager = contractManager;
             contractManager.RegisterForOrderFilled(this);
+            _movingAverage = new MovingAverage(MovingAverageSize);
         }
 
         /// <summary>
-        /// Workout if there is still liquidity after a sale of stock given the initial margin requirements and
-        /// what the portfolio would be worth at the given price point after the sale
+        /// Workout the purchase power amount using the given margin requirements, less whatever has already been borrowed
         /// </summary>
-        /// <param name="funds">Amount of funds on hand at this moment</param>
-        /// <param name="qtyOnHand">Amount of stock on hand at this moment</param>
-        /// <param name="pricePerStock">Price per stock at which the sale will be executed</param>
-        /// <param name="tradeQty">Amount of stock traded in the execution of the sale</param>
-        /// <param name="marginPct">Initial margin percentage</param>
-        /// <returns>Amount still available to be borrowed after the execution of the sale</returns>
-        public static decimal LiquidityAfterSale(
+        /// <param name="funds">Amount of funds on hand either owed or as cash</param>
+        /// <param name="qtyOnHand">Amount of stock on hand at this moment or amount currently shorted</param>
+        /// <param name="pricePerStock">Current price per unit of stock at this moment</param>
+        /// <param name="marginPct">Required margin percentage</param>
+        /// <returns>How much funds are still accessible at this moment</returns>
+        public static decimal FundsAvailable(
             decimal funds,
             decimal qtyOnHand,
             decimal pricePerStock,
-            decimal tradeQty,
             decimal marginPct)
-        {
-            var quantityAfterSale = qtyOnHand - tradeQty;
-            var assetValueAfterSale = pricePerStock * quantityAfterSale;
-            var fundsFromSale = tradeQty * pricePerStock;
-            var equityAfterSale = assetValueAfterSale + fundsFromSale + funds;
-            var purchasePowerAfterSale = equityAfterSale / marginPct;
-            var borrowableAfterSale = (1 - marginPct) * purchasePowerAfterSale;
-            var leftToStillBorrow = borrowableAfterSale + assetValueAfterSale;
-            return leftToStillBorrow;
-        }
+            => (1 - marginPct) * (qtyOnHand * pricePerStock + funds) / marginPct + funds;
 
         /// <summary>
-        /// Workout if there is still liquidity after the purchasing of stock given the initial margin requirements and
-        /// what the portfolio would be worth at the given price point after the purchase
+        /// Workout the value of stocks that can be sold given the margin requirements,
+        /// less the amount of stocks already shorted
         /// </summary>
-        /// <param name="funds">Amount of funds on hand at this moment</param>
-        /// <param name="qtyOnHand">Amount of stock on hand at this moment</param>
-        /// <param name="pricePerStock">Price per stock at which the buy order will be executed</param>
-        /// <param name="tradeQty">Amount of stock purchased in the execution of the order</param>
-        /// <param name="marginPct">Initial margin percentage</param>
-        /// <returns>Amount still available to be borrowed after the execution of the buy order</returns>
-        public static decimal LiquidityAfterBuy(
-        decimal funds,
+        /// <param name="funds">Amount of funds on hand either owed or as cash</param>
+        /// <param name="qtyOnHand">Amount of stock on hand at this moment or amount currently shorted</param>
+        /// <param name="pricePerStock">Current price per unit of stock at this moment</param>
+        /// <param name="marginPct">Required margin percentage</param>
+        /// <returns>Stock value that can be sold at this moment</returns>
+        public static decimal StockValueAvailable(
+            decimal funds,
             decimal qtyOnHand,
             decimal pricePerStock,
-            decimal tradeQty,
             decimal marginPct)
-        {
-            var quantityAfterBuy = qtyOnHand + tradeQty;
-            var assetValueAfterBuy = pricePerStock * quantityAfterBuy;
-            var purchaseCost = tradeQty * pricePerStock;
-            var fundsAfterBuy = funds - purchaseCost;
-            var equityAfterBuy = assetValueAfterBuy + fundsAfterBuy;
-            var purchasePowerAfterBuy = equityAfterBuy / marginPct;
-            var borrowableAfterBuy = (1 - marginPct) * purchasePowerAfterBuy;
-            var leftToStillBorrow = borrowableAfterBuy + fundsAfterBuy;
-            return leftToStillBorrow;
-        }
-
-        /// <summary>
-        /// Determine if a buy order is still possible at the given price and current contract position
-        /// </summary>
-        /// <param name="price">Price to purchase stock at</param>
-        /// <param name="contract">Portfolio's position and contract info</param>
-        /// <returns>true if the purchase is possible otherwise false</returns>
-        public static bool PurchasePossible(decimal price, Contract contract)
-        {
-            var purchaseCost = price * contract.TradeQty;
-            if (contract.Funding > purchaseCost) return true;
-            var fundsAfterPurchase = LiquidityAfterBuy(contract.Funding, contract.QuantityOnHand, price,
-                contract.TradeQty, Contract.InitialMargin);
-            return fundsAfterPurchase > 0;
-        }
-
-        /// <summary>
-        /// Determine if a sale order is still possible at the given price and current contract position
-        /// </summary>
-        /// <param name="price">Price to sell stock at</param>
-        /// <param name="contract">Portfolio's position and contract info</param>
-        /// <returns>true if the purchase is possible otherwise false</returns>
-        public static bool SalePossible(decimal price, Contract contract)
-        {
-            if (contract.QuantityOnHand > contract.TradeQty) return true;
-            var fundsAfterSale = LiquidityAfterSale(contract.Funding, contract.QuantityOnHand, price, contract.TradeQty,
-                Contract.InitialMargin);
-            return fundsAfterSale > 0;
-        }
+            => (qtyOnHand * pricePerStock + funds) / marginPct + (qtyOnHand < 0 ? qtyOnHand * pricePerStock : 0);
 
         /// <summary>
         /// The highest market price that we can hold the position at, above which a margin call will be made.
@@ -126,6 +77,11 @@ namespace Auto_Invest_Strategy
         public async Task Tick(TickPosition tick)
         {
             var contractState = await _contractManager.GetContractState(tick.Symbol);
+            _movingAverage.Add(tick.Position);
+
+            var sma = _movingAverage.CurrentAverage;
+            var minPosition = Math.Min(tick.Position, sma);
+            var maxPosition = Math.Max(tick.Position, sma);
 
             if (contractState.AveragePrice == 0)
             {
@@ -141,62 +97,52 @@ namespace Auto_Invest_Strategy
 
             if (contractState.RunState == RunState.BuyRun)
             {
-                var limit = UpperLimit(tick.Position, contractState.TrailingOffset);
+                var limit = UpperLimit(maxPosition, contractState.TrailingOffset);
                 if (limit > contractState.BuyOrderLimit) return;
-                if (!PurchasePossible(limit, contractState)) return;
-
-                await _contractManager.PlaceTrailingBuyOrder(new MarketOrder
-                {
-                    Quantity = contractState.TradeQty,
-                    Symbol = tick.Symbol,
-                    PricePerUnit = limit
-                });
-
+                await PlaceOrder(limit, FundsAvailable, _contractManager.PlaceTrailingBuyOrder);
                 return;
             }
 
             if (contractState.RunState == RunState.SellRun)
             {
-                var limit = LowerLimit(tick.Position, contractState.TrailingOffset);
+                var limit = LowerLimit(minPosition, contractState.TrailingOffset);
                 if (limit < contractState.SellOrderLimit) return;
-                if (!SalePossible(limit, contractState)) return;
-
-                await _contractManager.PlaceTrailingSellOrder(new MarketOrder
-                {
-                    Symbol = tick.Symbol,
-                    Quantity = contractState.TradeQty,
-                    PricePerUnit = limit
-                });
-
+                await PlaceOrder(limit, StockValueAvailable, _contractManager.PlaceTrailingSellOrder);
                 return;
             }
 
             if (contractState.RunState == RunState.TriggerRun &&
-                tick.Position >= contractState.UpperBound)
+                minPosition >= contractState.UpperBound)
             {
-                var limit = LowerLimit(tick.Position, contractState.TrailingOffset);
+                var limit = LowerLimit(minPosition, contractState.TrailingOffset);
                 if (limit < contractState.AveragePrice) limit = contractState.AveragePrice;
-                if (!SalePossible(limit, contractState)) return;
-
-                await _contractManager.PlaceTrailingSellOrder(new MarketOrder
-                {
-                    Quantity = contractState.TradeQty,
-                    Symbol = tick.Symbol,
-                    PricePerUnit = limit
-                });
+                await PlaceOrder(limit, StockValueAvailable, _contractManager.PlaceTrailingSellOrder);
                 return;
             }
 
             if (contractState.RunState == RunState.TriggerRun &&
-                tick.Position <= contractState.LowerBound)
+                maxPosition <= contractState.LowerBound)
             {
-                var limit = UpperLimit(tick.Position, contractState.TrailingOffset);
+                var limit = UpperLimit(maxPosition, contractState.TrailingOffset);
                 if (limit > contractState.AveragePrice) limit = contractState.AveragePrice;
-                if (!PurchasePossible(limit, contractState)) return;
+                await PlaceOrder(limit, FundsAvailable, _contractManager.PlaceTrailingBuyOrder);
+            }
 
-                await _contractManager.PlaceTrailingBuyOrder(new MarketOrder
+            async Task PlaceOrder(
+                decimal limit,
+                Func<decimal, decimal, decimal, decimal, decimal> calculateAvailableValue,
+                Func<MarketOrder, Task> placeOrder)
+            {
+                var availableValue = calculateAvailableValue(contractState.Funding, contractState.QuantityOnHand, limit,
+                    Contract.InitialMargin);
+
+                if (availableValue <= 0) return;
+
+                var tradeSize = (availableValue * contractState.TradePercent) / limit;
+
+                await placeOrder(new MarketOrder
                 {
-                    Quantity = contractState.TradeQty,
+                    Quantity = tradeSize,
                     Symbol = tick.Symbol,
                     PricePerUnit = limit
                 });
@@ -231,6 +177,7 @@ namespace Auto_Invest_Strategy
                 var batchQty = Math.Abs(contractState.QuantityOnHand) / contractState.SafetyBands;
                 var funds = contractState.Funding;
                 var quantity = contractState.QuantityOnHand;
+                await _contractManager.ClearEmergencyOrders(symbol);
 
                 for (var i = 0; i < contractState.SafetyBands; i++)
                 {
@@ -239,7 +186,7 @@ namespace Auto_Invest_Strategy
                     var price = LowestMaintainablePrice(funds, Contract.MaintenanceMargin, quantity);
 
                     // We need to include the margin safety so that it the order executes earlier to avoid a margin call
-                    price += contractState.MarginSafety;
+                    price += contractState.MarginProtection;
 
                     // Placing a stop order ahead of time
                     await _contractManager.PlaceEmergencySellOrder(new MarketOrder
@@ -269,6 +216,7 @@ namespace Auto_Invest_Strategy
                 var batchQty = Math.Abs(contractState.QuantityOnHand) / contractState.SafetyBands;
                 var funds = contractState.Funding;
                 var quantity = contractState.QuantityOnHand;
+                await _contractManager.ClearEmergencyOrders(symbol);
 
                 for (var i = 0; i < contractState.SafetyBands; i++)
                 {
@@ -277,7 +225,7 @@ namespace Auto_Invest_Strategy
                     var price = HighestMaintainablePrice(funds, Contract.MaintenanceMargin, quantity);
 
                     // We need to include the margin safety in order to execute earlier to avoid a margin call
-                    price -= contractState.MarginSafety;
+                    price -= contractState.MarginProtection;
 
                     // Placing a stop order ahead of time
                     await _contractManager.PlaceEmergencyBuyOrder(new MarketOrder

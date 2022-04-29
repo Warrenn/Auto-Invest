@@ -1,29 +1,24 @@
-﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+﻿<Project Sdk="Microsoft.NET.Sdk.Worker">
 
   <PropertyGroup>
     <TargetFramework>net6.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UserSecretsId>dotnet-Auto_Invest-17BF1975-2A16-48A1-80C5-47150AEC148E</UserSecretsId>
     <RootNamespace>Auto_Invest</RootNamespace>
-    <UserSecretsId>875eae98-030b-4137-8cf9-b6e5b2c543af</UserSecretsId>
     <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
-    <DockerfileContext>.</DockerfileContext>
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Remove="Strategy\**" />
-    <Content Remove="Strategy\**" />
-    <EmbeddedResource Remove="Strategy\**" />
-    <None Remove="Strategy\**" />
+    <Compile Remove="IBClient.cs" />
+    <Compile Remove="IBKRClientContract.cs" />
+    <Compile Remove="MessageType.cs" />
+    <Compile Remove="OrderProgress.cs" />
+    <Compile Remove="ProgressStatus.cs" />
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="InteractiveBrokers.TwsClient" Version="1.0.677" />
-    <PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.10.13" />
-    <PackageReference Include="moq" Version="4.17.2" />
-    <PackageReference Include="Newtonsoft.Json" Version="13.0.1" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="6.0.1" />
+    <PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.14.0" />
   </ItemGroup>
-
-  <ItemGroup>
-    <ProjectReference Include="..\Auto-Invest-Strategy\Auto-Invest-Strategy.csproj" />
-  </ItemGroup>
-
 </Project>

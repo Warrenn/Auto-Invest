@@ -172,3 +172,4 @@ $RECYCLE.BIN/
 # Mac crap
 .DS_Store
 *.snk
+/Data

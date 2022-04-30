@@ -173,8 +173,4 @@ $RECYCLE.BIN/
 # Mac crap
 .DS_Store
 *.snk
-<<<<<<< HEAD
-/Data
-=======
 /IBeam/env
->>>>>>> 426a1cef66ec184e61d9465c5c518324ed4a56ef

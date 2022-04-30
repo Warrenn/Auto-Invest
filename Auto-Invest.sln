@@ -3,13 +3,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.1.32319.34
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Auto-Invest-Test", "Auto-Invest-Test\Auto-Invest-Test.csproj", "{39AD0809-E378-4798-BDB9-5053F5B7DB72}"
-EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Auto-Invest-Strategy", "Auto-Invest-Strategy\Auto-Invest-Strategy.csproj", "{985F5799-E94A-46C3-B7FF-B73603B2879E}"
-EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Auto-Invest", "Auto-Invest\Auto-Invest.csproj", "{6F4A993A-A7A3-418F-884B-F2B17F3DFBF2}"
-EndProject
-Project("{888888A0-9F3D-457C-B088-3A5042F75D52}") = "IBeam", "IBeam\IBeam.pyproj", "{3E7F729D-8EBA-42AD-8F60-270AF3192409}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -17,20 +11,10 @@ Global
 		Release|Any CPU = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{39AD0809-E378-4798-BDB9-5053F5B7DB72}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{39AD0809-E378-4798-BDB9-5053F5B7DB72}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{39AD0809-E378-4798-BDB9-5053F5B7DB72}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{39AD0809-E378-4798-BDB9-5053F5B7DB72}.Release|Any CPU.Build.0 = Release|Any CPU
-		{985F5799-E94A-46C3-B7FF-B73603B2879E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{985F5799-E94A-46C3-B7FF-B73603B2879E}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{985F5799-E94A-46C3-B7FF-B73603B2879E}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{985F5799-E94A-46C3-B7FF-B73603B2879E}.Release|Any CPU.Build.0 = Release|Any CPU
 		{6F4A993A-A7A3-418F-884B-F2B17F3DFBF2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{6F4A993A-A7A3-418F-884B-F2B17F3DFBF2}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{6F4A993A-A7A3-418F-884B-F2B17F3DFBF2}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{6F4A993A-A7A3-418F-884B-F2B17F3DFBF2}.Release|Any CPU.Build.0 = Release|Any CPU
-		{3E7F729D-8EBA-42AD-8F60-270AF3192409}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{3E7F729D-8EBA-42AD-8F60-270AF3192409}.Release|Any CPU.ActiveCfg = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

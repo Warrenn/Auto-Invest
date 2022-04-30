@@ -12,6 +12,7 @@ namespace Auto_Invest_Strategy
 
         public Contract(
             string symbol,
+            string conid,
             decimal funding,
             decimal trailingOffset,
             decimal tradePercentage = 0.02M,

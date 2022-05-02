@@ -1,10 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace Auto_Invest
+﻿namespace Auto_Invest
 {
     public class TickWorker : BackgroundService
     {
@@ -14,9 +8,19 @@ namespace Auto_Invest
         {
             _mediator = mediator;
         }
-        protected override Task ExecuteAsync(CancellationToken stoppingToken)
+
+        protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
-            return Task.CompletedTask;
+            var strategies = await _mediator.GetContractStrategiesAsync();
+            var tickPositions = await _mediator.GetTickPositionReaderAsync();
+
+            await foreach (var position in tickPositions.ReadAllAsync(stoppingToken))
+            {
+                if (!strategies.ContainsKey(position.Symbol)) continue;
+                var recordTick = strategies[position.Symbol];
+                await recordTick.Tick(position);
+            }
+
         }
     }
 }

@@ -9,21 +9,22 @@ namespace Auto_Invest
 {
     public class WebSocketWorker : BackgroundService
     {
-        private readonly string _uri;
+        private LocalServerConfig _serverConfig { get; }
         private readonly IMediator _mediator;
 
-        public WebSocketWorker(string uri, IMediator mediator)
+        public WebSocketWorker(LocalServerConfig serverConfig, IMediator mediator)
         {
-            _uri = uri;
+            _serverConfig = serverConfig;
             _mediator = mediator;
         }
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
-            var clientSocket = await _mediator.GetWebSocketAsync();
-            var contractIds = await _mediator.GetContractIdsAsync();
+            var contractIds = await _mediator.GetContractsAsync();
 
-            await clientSocket.ConnectAsync(new Uri(_uri), stoppingToken);
+            using var clientSocket = new ClientWebSocket();
+            //todo:get the proper url here
+            await clientSocket.ConnectAsync(new Uri($"{_serverConfig.HostUrl}/ws/socketEndPoint"), stoppingToken);
 
             var orderChannel = Channel.CreateUnbounded<CompletedOrder>();
             var tickChannel = Channel.CreateUnbounded<TickPosition>();
@@ -33,7 +34,7 @@ namespace Auto_Invest
 
             foreach (var contractId in contractIds)
             {
-                var subscription = $"smd+{contractId}+{{\"fields\":[\"31\"]}}";
+                var subscription = $"smd+{contractId.ConId}+{{\"fields\":[\"31\"]}}";
                 var subBytes = Encoding.UTF8.GetBytes(subscription);
                 await clientSocket.SendAsync(
                     new ArraySegment<byte>(subBytes),

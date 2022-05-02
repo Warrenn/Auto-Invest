@@ -6,9 +6,11 @@ namespace Auto_Invest
 {
     public interface IMediator
     {
-        Task<ClientWebSocket> GetWebSocketAsync();
-        Task<ChannelReader<CompletedOrder>> CompletedOrderReaderAsync();
+        Task<ChannelReader<CompletedOrder>> GetCompletedOrderReaderAsync();
         Task<IEnumerable<ContractExtended>> GetContractsAsync();
+        Task<IDictionary<string, IOrderCompletion>> GetCompletionCallbacksAsync();
+        Task<IDictionary<string, IRecordTick>> GetContractStrategiesAsync();
+        Task<ChannelReader<TickPosition>> GetTickPositionReaderAsync();
 
         void RegisterCompletedOrderChannel(Channel<CompletedOrder> channel);
         void RegisterTickPositionChannel(Channel<TickPosition> channel);

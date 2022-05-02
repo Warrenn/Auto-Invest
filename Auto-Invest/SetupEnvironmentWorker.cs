@@ -73,7 +73,19 @@ namespace Auto_Invest
                 extendedList.Add(extendedContract);
             }
 
+            //for each contract
+            //create the contract manager
+            ////contractManager = new ContractManager(contractClient);
+            ////strategy = new TrailingBuySellStrategy(contractManager);
+            ////contractManager.RegisterContract(contract);
+            ///
+            /// get the strategies as dictionary (tick Recordings)
+            /// get the completions as dictionary
+            /// get the changes reader for each contract
+            ///
+            /// _mediator(contractReaders);
             _mediator.RegisterContracts(extendedList);
+
 
         }
 

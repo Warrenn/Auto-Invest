@@ -22,8 +22,4 @@
     <PackageReference Include="YahooFinanceApi" Version="2.1.2" />
   </ItemGroup>
 
-  <ItemGroup>
-    <ProjectReference Include="..\Auto-Invest-Strategy\Auto-Invest-Strategy.csproj" />
-  </ItemGroup>
-
 </Project>

@@ -16,7 +16,6 @@
     <Compile Remove="OrderProgress.cs" />
     <Compile Remove="Program_.cs" />
     <Compile Remove="ProgressStatus.cs" />
-    <Compile Remove="TradeWorker.cs" />
   </ItemGroup>
 
   <ItemGroup>

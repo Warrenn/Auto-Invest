@@ -3,11 +3,11 @@ using Auto_Invest_Strategy;
 
 namespace Auto_Invest
 {
-    public class TradeWorker : BackgroundService, IContractClient
+    public class OrderCompletedWorker : BackgroundService, IContractClient
     {
         private readonly IMediator _mediator;
 
-        public TradeWorker(string baseUrl, IMediator mediator)
+        public OrderCompletedWorker(string baseUrl, IMediator mediator)
         {
             _baseUrl = baseUrl;
             _mediator = mediator;

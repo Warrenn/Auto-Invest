@@ -15,13 +15,18 @@ using Auto_Invest;
 //Console.ReadLine();
 
 
-//var host = Host.CreateDefaultBuilder(args)
-//    .ConfigureServices(services =>
-//    {
-//        services
-//            .AddHostedService<Worker>();
-//    })
-//    .Build();
+var host = Host.CreateDefaultBuilder(args)
+    .ConfigureServices(services =>
+    {
+        services.AddSingleton(new LocalServerConfig
+        {
+            ResultsFile = Environment.GetEnvironmentVariable(""),
+            HostUrl = Environment.GetEnvironmentVariable("")
+        });
+        services
+            .AddHostedService<Worker>();
+    })
+    .Build();
 
 var bb = new TaskCompletionSource<object>();
 

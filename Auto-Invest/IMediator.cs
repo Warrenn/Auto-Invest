@@ -17,7 +17,8 @@ namespace Auto_Invest
 
         void RegisterCompletedOrderChannel(Channel<CompletedOrder> channel);
         void RegisterTickPositionChannel(Channel<TickPosition> channel);
-        Task<IDictionary<string, string>> GetContractIdsAsync();
+        Task<IEnumerable<ContractExtended>> GetContractsAsync();
         Task<string> GetAccountIdAsync();
+        void RegisterContracts(IEnumerable<ContractExtended> extendedList);
     }
 }

@@ -21,7 +21,6 @@ namespace Auto_Invest
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
             var clientSocket = await _mediator.GetWebSocketAsync();
-            var bb = new BroadcastBlock<IDictionary<string, string>>(o => o);
             var contractIds = await _mediator.GetContractIdsAsync();
 
             await clientSocket.ConnectAsync(new Uri(_uri), stoppingToken);

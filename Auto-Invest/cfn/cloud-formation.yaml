@@ -204,8 +204,11 @@ Resources:
             #!/bin/bash -x
             export IBEAM_INPUTS_DIR=/srv/inputs
             export IBEAM_OUTPUTS_DIR=/srv/outputs
+            export IBEAM_RESULTS_DIR=/srv/results
+            export IBEAM_RESULTS_FILENAME=results.json
             export ECR_REGISTRY=public.ecr.aws/x9x1s8n0
             export ECR_REPO=busyweb/ibeam
+            export GATEWAY_URL=https://localhost:5000
 
             rpm -Uvh https://packages.microsoft.com/config/centos/7/packages-microsoft-prod.rpm
             yum update -y
@@ -230,14 +233,15 @@ Resources:
             aws s3 cp s3://${S3ArtifactBucket}${ArtifactPath}/api.ibkr.cer api.ibkr.cer --region ${AWS::Region}
             cp api.ibkr.cer /etc/ssl/certs/api.ibkr.cer
 
-            TOKEN=$(curl -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
+            export TOKEN=$(curl -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
             export PRIVATE_IPV4=$(curl -H "X-aws-ec2-metadata-token: $TOKEN" -v http://169.254.169.254/latest/meta-data/local-ipv4)
             export PRIVATE_HOSTNAME=$(curl -H "X-aws-ec2-metadata-token: $TOKEN" -v http://169.254.169.254/latest/meta-data/local-hostname)
+            export CERT_PASSWORD=$(openssl rand -base64 32)
 
             export IBEAM_ACCOUNT=$(aws ssm get-parameter --name /${EnvName}/${SettingsPrefix}/ibeam_account --with-decryption --region ${AWS::Region} | jq -r '.Parameter.Value')
             export IBEAM_PASSWORD=$(aws ssm get-parameter --name /${EnvName}/${SettingsPrefix}/ibeam_password --with-decryption --region ${AWS::Region} | jq -r '.Parameter.Value')
 
-            cat <<'EOF' > $IBEAM_INPUTS_DIR/conf.yaml.tmpl
+            cat <<EOF > $IBEAM_INPUTS_DIR/conf.yaml
               ip2loc: "US"
               proxyRemoteSsl: true
               proxyRemoteHost: "https://api.ibkr.com"
@@ -245,7 +249,7 @@ Resources:
               listenSsl: true
               svcEnvironment: "v1"
               sslCert: "cacert.jks"
-              sslPwd: "password"
+              sslPwd: "${!CERT_PASSWORD}"
               authDelay: 3000
               portalBaseURL: ""
               serverOptions:
@@ -271,11 +275,8 @@ Resources:
                 deny:
                   - 212.90.324.10
             EOF
-            touch $IBEAM_INPUTS_DIR/conf.yaml
-            chmod 777 $IBEAM_INPUTS_DIR/conf.yaml
-            PRIVATE_IPV4=$PRIVATE_IPV4 envsubst < $IBEAM_INPUTS_DIR/conf.yaml.tmpl > $IBEAM_INPUTS_DIR/conf.yaml
 
-            cat <<'EOF' > $IBEAM_INPUTS_DIR/san.tmpl
+            cat <<EOF > $IBEAM_INPUTS_DIR/san.cnf
                 [req]
                 default_bits = 2048
                 distinguished_name = req_distinguished_name
@@ -301,15 +302,11 @@ Resources:
                 DNS.1 = localhost
             EOF
 
-            cat <<'EOF' > $IBEAM_INPUTS_DIR/generate-cert.sh
-                touch $IBEAM_INPUTS_DIR/san.cnf
-                chmod 777 $IBEAM_INPUTS_DIR/san.cnf
-                PRIVATE_IPV4=$PRIVATE_IPV4 PRIVATE_HOSTNAME=$PRIVATE_HOSTNAME envsubst < $IBEAM_INPUTS_DIR/san.tmpl > $IBEAM_INPUTS_DIR/san.cnf
-
-                openssl req -x509 -days 730 -newkey rsa:2048 -keyout $IBEAM_INPUTS_DIR/key.pem -out $IBEAM_INPUTS_DIR/cert.pem -config $IBEAM_INPUTS_DIR/san.cnf -passout pass:"password"
+            cat <<EOF > $IBEAM_INPUTS_DIR/generate-cert.sh
+                openssl req -x509 -days 730 -newkey rsa:2048 -keyout $IBEAM_INPUTS_DIR/key.pem -out $IBEAM_INPUTS_DIR/cert.pem -config $IBEAM_INPUTS_DIR/san.cnf -passout pass:"${!CERT_PASSWORD}"
                 cat $IBEAM_INPUTS_DIR/key.pem $IBEAM_INPUTS_DIR/cert.pem > $IBEAM_INPUTS_DIR/cacert.pem
-                openssl pkcs12 -export -in $IBEAM_INPUTS_DIR/cacert.pem -out $IBEAM_INPUTS_DIR/cacert.p12 -passin pass:'password' -passout pass:'password' 
-                echo "password" | keytool -importkeystore -srckeystore $IBEAM_INPUTS_DIR/cacert.p12 -srcstoretype pkcs12 -destkeystore $IBEAM_INPUTS_DIR/cacert.jks -storepass password -deststoretype pkcs12 
+                openssl pkcs12 -export -in $IBEAM_INPUTS_DIR/cacert.pem -out $IBEAM_INPUTS_DIR/cacert.p12 -passin pass:'${!CERT_PASSWORD}' -passout pass:'${!CERT_PASSWORD}' 
+                echo "${!CERT_PASSWORD}" | keytool -importkeystore -srckeystore $IBEAM_INPUTS_DIR/cacert.p12 -srcstoretype pkcs12 -destkeystore $IBEAM_INPUTS_DIR/cacert.jks -storepass ${!CERT_PASSWORD} -deststoretype pkcs12 
 
                 cp $IBEAM_INPUTS_DIR/key.pem /etc/ssl/certs/key.pem
                 cp $IBEAM_INPUTS_DIR/cert.pem /etc/ssl/certs/cert.pem
@@ -317,9 +314,9 @@ Resources:
             chmod +x $IBEAM_INPUTS_DIR/generate-cert.sh
 
             cd $IBEAM_INPUTS_DIR
-            PRIVATE_IPV4=$PRIVATE_IPV4 PRIVATE_HOSTNAME=$PRIVATE_HOSTNAME IBEAM_INPUTS_DIR=$IBEAM_INPUTS_DIR . $IBEAM_INPUTS_DIR/generate-cert.sh
+            . $IBEAM_INPUTS_DIR/generate-cert.sh
 
-            cat <<'EOF' > /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent-schema.tmpl
+            cat <<EOF > /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent-schema.json
               {
                 "agent": {
                   "run_as_user": "root"
@@ -345,7 +342,6 @@ Resources:
               }
             EOF
 
-            IBEAM_INPUTS_DIR=$IBEAM_INPUTS_DIR IBEAM_OUTPUTS_DIR=$IBEAM_OUTPUTS_DIR envsubst < /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent-schema.tmpl > /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent-schema.json
             /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -a fetch-config -m ec2 -s -c file:/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent-schema.json
             systemctl restart amazon-cloudwatch-agent
 
@@ -355,8 +351,10 @@ Resources:
                 --env IBEAM_PASSWORD=$IBEAM_PASSWORD \
                 --env IBEAM_OUTPUTS_DIR=$IBEAM_OUTPUTS_DIR \
                 --env IBEAM_INPUTS_DIR=$IBEAM_INPUTS_DIR \
+                --env IBEAM_RESULTS_PATH="${!IBEAM_RESULTS_DIR}\${!IBEAM_RESULTS_FILENAME}" \
                 -v $IBEAM_OUTPUTS_DIR:$IBEAM_OUTPUTS_DIR \
                 -v $IBEAM_INPUTS_DIR:$IBEAM_INPUTS_DIR \
+                -v $IBEAM_RESULTS_DIR:$IBEAM_RESULTS_DIR \
                 -p 5000:5000 $ECR_REGISTRY/$ECR_REPO
 
   GatewayLog:

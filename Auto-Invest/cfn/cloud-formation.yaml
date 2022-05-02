@@ -103,7 +103,21 @@ Resources:
       LaunchTemplate:
         LaunchTemplateId: !Ref LaunchTemplate
         Version: !GetAtt LaunchTemplate.LatestVersionNumber
-  
+
+  ContractDynamoDBTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      AttributeDefinitions:
+        - AttributeName: Symbol
+          AttributeType: S
+      TableName: auto-invest-contract
+      KeySchema:
+        - AttributeName: Symbol
+          KeyType: HASH
+        - AttributeName: Symbol
+          KeyType: RANGE
+      BillingMode: PAY_PER_REQUEST  
+
   InstanceProfile:
     Type: AWS::IAM::InstanceProfile
     Properties:

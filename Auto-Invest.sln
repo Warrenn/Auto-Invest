@@ -5,6 +5,10 @@ VisualStudioVersion = 17.1.32319.34
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Auto-Invest", "Auto-Invest\Auto-Invest.csproj", "{6F4A993A-A7A3-418F-884B-F2B17F3DFBF2}"
 EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Auto-Invest-Strategy", "Auto-Invest-Strategy\Auto-Invest-Strategy.csproj", "{E9DA6CA7-F980-4FB7-8C53-A3196F7A047D}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Auto-Invest-Test", "Auto-Invest-Test\Auto-Invest-Test.csproj", "{75692724-1C17-4220-8607-DB1C39B3740F}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -15,8 +19,14 @@ Global
 		{6F4A993A-A7A3-418F-884B-F2B17F3DFBF2}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{6F4A993A-A7A3-418F-884B-F2B17F3DFBF2}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{6F4A993A-A7A3-418F-884B-F2B17F3DFBF2}.Release|Any CPU.Build.0 = Release|Any CPU
-		{08C0BC9E-2C96-4F84-A343-EA5025868122}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{08C0BC9E-2C96-4F84-A343-EA5025868122}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E9DA6CA7-F980-4FB7-8C53-A3196F7A047D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E9DA6CA7-F980-4FB7-8C53-A3196F7A047D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E9DA6CA7-F980-4FB7-8C53-A3196F7A047D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E9DA6CA7-F980-4FB7-8C53-A3196F7A047D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{75692724-1C17-4220-8607-DB1C39B3740F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{75692724-1C17-4220-8607-DB1C39B3740F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{75692724-1C17-4220-8607-DB1C39B3740F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{75692724-1C17-4220-8607-DB1C39B3740F}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

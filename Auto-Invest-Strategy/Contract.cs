@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Channels;
 
 namespace Auto_Invest_Strategy
 {
@@ -9,6 +10,11 @@ namespace Auto_Invest_Strategy
         public const decimal InitialMargin = 0.5M;
         public const decimal MaintenanceMargin = 0.3M;
         private IList<EmergencyOrderDetail> _emergencyOrders = new List<EmergencyOrderDetail>();
+
+        private readonly Channel<Contract> _changes = Channel.CreateBounded<Contract>(new BoundedChannelOptions(1000)
+        {
+            FullMode = BoundedChannelFullMode.DropOldest
+        });
 
         public Contract(
             string symbol,
@@ -121,14 +127,16 @@ namespace Auto_Invest_Strategy
         public int TrailingSellOrderId { get; private set; } = -1;
 
         /// <summary>
+        /// The the safety amount to offset against a margin price to avoid a margin call
+        /// </summary>
+        public decimal MarginProtection { get; }
+
+        /// <summary>
         /// The tracking numbers of the emergency orders
         /// </summary>
         public IEnumerable<EmergencyOrderDetail> EmergencyOrders => _emergencyOrders.AsEnumerable();
 
-        /// <summary>
-        /// The the safety amount to offset against a margin price to avoid a margin call
-        /// </summary>
-        public decimal MarginProtection { get; }
+        public ChannelReader<Contract> Changes => _changes.Reader;
 
         public void RegisterEditor(IRegisterContractEditor register) => register.RegisterEditor(this, new ContractEditor(this));
 
@@ -141,25 +149,84 @@ namespace Auto_Invest_Strategy
                 _state = state;
             }
 
-            public void SetRunState(RunState newState) => _state.RunState = newState;
-            public void SetAveragePrice(decimal newValue) => _state.AveragePrice = newValue;
-            public void SetTotalCost(decimal newValue) => _state.TotalCost = newValue;
-            public void SetQuantity(decimal newValue) => _state.QuantityOnHand = newValue;
-            public void SetFunding(decimal newValue) => _state.Funding = newValue;
-            public void SetUpperBound(decimal newValue) => _state.UpperBound = newValue;
-            public void SetLowerBound(decimal newValue) => _state.LowerBound = newValue;
-            public void SetSellLimit(decimal newValue) => _state.SellOrderLimit = newValue;
-            public void SetBuyLimit(decimal newValue) => _state.BuyOrderLimit = newValue;
+            public void SetRunState(RunState newState)
+            {
+                _state.RunState = newState;
+                _state._changes.Writer.TryWrite(_state);
+            }
+
+            public void SetAveragePrice(decimal newValue)
+            {
+                _state.AveragePrice = newValue;
+                _state._changes.Writer.TryWrite(_state);
+            }
+            public void SetTotalCost(decimal newValue)
+            {
+                _state.TotalCost = newValue;
+                _state._changes.Writer.TryWrite(_state);
+            }
+            public void SetQuantity(decimal newValue)
+            {
+                _state.QuantityOnHand = newValue;
+                _state._changes.Writer.TryWrite(_state);
+            }
+            public void SetFunding(decimal newValue)
+            {
+                _state.Funding = newValue;
+                _state._changes.Writer.TryWrite(_state);
+            }
+            public void SetUpperBound(decimal newValue)
+            {
+                _state.UpperBound = newValue;
+                _state._changes.Writer.TryWrite(_state);
+            }
+
+            public void SetLowerBound(decimal newValue)
+            {
+                _state.LowerBound = newValue;
+                _state._changes.Writer.TryWrite(_state);
+            }
+
+            public void SetSellLimit(decimal newValue)
+            {
+                _state.SellOrderLimit = newValue;
+                _state._changes.Writer.TryWrite(_state);
+            }
+            public void SetBuyLimit(decimal newValue)
+            {
+                _state.BuyOrderLimit = newValue;
+                _state._changes.Writer.TryWrite(_state);
+            }
             public void RemoveEmergencyOrderId(int orderId)
             {
                 var order = _state.EmergencyOrders.First(_ => _.OrderId == orderId);
                 ((IList<EmergencyOrderDetail>)_state.EmergencyOrders).Remove(order);
+                _state._changes.Writer.TryWrite(_state);
             }
 
-            public void SetTrailingBuyOrderId(int newValue) => _state.TrailingBuyOrderId = newValue;
-            public void SetTrailingSellOrderId(int newValue) => _state.TrailingSellOrderId = newValue;
-            public void ResetEmergencyOrders() => _state._emergencyOrders = new List<EmergencyOrderDetail>();
-            public void AddEmergencyOrder(EmergencyOrderDetail detail) => _state._emergencyOrders.Add(detail);
+            public void SetTrailingBuyOrderId(int newValue)
+            {
+                _state.TrailingBuyOrderId = newValue;
+                _state._changes.Writer.TryWrite(_state);
+            }
+
+            public void SetTrailingSellOrderId(int newValue)
+            {
+                _state.TrailingSellOrderId = newValue;
+                _state._changes.Writer.TryWrite(_state);
+            }
+
+            public void ResetEmergencyOrders()
+            {
+                _state._emergencyOrders = new List<EmergencyOrderDetail>();
+                _state._changes.Writer.TryWrite(_state);
+            }
+
+            public void AddEmergencyOrder(EmergencyOrderDetail detail)
+            {
+                _state._emergencyOrders.Add(detail);
+                _state._changes.Writer.TryWrite(_state);
+            }
         }
     }
 }

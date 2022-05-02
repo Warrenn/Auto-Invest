@@ -141,7 +141,8 @@ namespace Auto_Invest_Strategy
             {
                 Action = ActionSide.Sell,
                 OrderId = orderResult.OrderId,
-                PricePerUnit = order.PricePerUnit
+                PricePerUnit = order.PricePerUnit,
+                Size = order.Quantity
             });
             await PlaceEmergencySellOrderEvent(order);
         }
@@ -167,7 +168,8 @@ namespace Auto_Invest_Strategy
             {
                 Action = ActionSide.Buy,
                 OrderId = orderResult.OrderId,
-                PricePerUnit = order.PricePerUnit
+                PricePerUnit = order.PricePerUnit,
+                Size = order.Quantity
             });
             await PlaceEmergencyBuyOrderEvent(order);
         }

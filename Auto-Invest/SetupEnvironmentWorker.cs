@@ -1,6 +1,8 @@
 ﻿using System.Text.Json;
+using System.Threading.Channels;
 using Auto_Invest.DynamoDb;
 using Auto_Invest.Rest;
+using Auto_Invest_Strategy;
 
 namespace Auto_Invest
 {
@@ -17,7 +19,11 @@ namespace Auto_Invest
             public bool ShutDown { get; set; }
         }
 
-        public SetupEnvironmentWorker(LocalServerConfig serverConfig, IWebService webService, IContractDataService contractDataService, IMediator mediator)
+        public SetupEnvironmentWorker(
+            LocalServerConfig serverConfig,
+            IWebService webService,
+            IContractDataService contractDataService,
+            IMediator mediator)
         {
             _serverConfig = serverConfig;
             _webService = webService;
@@ -48,7 +54,7 @@ namespace Auto_Invest
             var contracts = await _contractDataService.GetContractDataAsync();
             var details = await _webService.GetAccountDetailsAsync();
             var accountId = details.AccountId;
-            
+
             var extendedList = new List<ContractExtended>();
             foreach (var contract in contracts)
             {
@@ -73,20 +79,22 @@ namespace Auto_Invest
                 extendedList.Add(extendedContract);
             }
 
-            //for each contract
-            //create the contract manager
-            ////contractManager = new ContractManager(contractClient);
-            ////strategy = new TrailingBuySellStrategy(contractManager);
-            ////contractManager.RegisterContract(contract);
-            ///
-            /// get the strategies as dictionary (tick Recordings)
-            /// get the completions as dictionary
-            /// get the changes reader for each contract
-            ///
-            /// _mediator(contractReaders);
+            var client = new GatewayClient(_webService, extendedList.ToArray());
+            var strategies = new Dictionary<string, IRecordTick>();
+            var contractChanges = new List<ChannelReader<Contract>>();
+            foreach (var contract in extendedList)
+            {
+                var contractManager = new ContractManager(client);
+                var strategy = new TrailingBuySellStrategy(contractManager);
+                contractManager.RegisterContract(contract);
+                strategies[contract.Symbol] = strategy;
+                contractChanges.Add(contract.Changes);
+            }
+
+            _mediator.RegisterContractChanges(contractChanges);
+            _mediator.RegisterStrategies(strategies);
+            _mediator.RegisterCompletionCallbacks(client.Completion);
             _mediator.RegisterContracts(extendedList);
-
-
         }
 
         #endregion

@@ -2,14 +2,13 @@
 using System.Text;
 using System.Text.Json;
 using System.Threading.Channels;
-using System.Threading.Tasks.Dataflow;
 using Auto_Invest_Strategy;
 
 namespace Auto_Invest
 {
     public class WebSocketWorker : BackgroundService
     {
-        private LocalServerConfig _serverConfig { get; }
+        private readonly LocalServerConfig _serverConfig;
         private readonly IMediator _mediator;
 
         public WebSocketWorker(LocalServerConfig serverConfig, IMediator mediator)
@@ -29,8 +28,8 @@ namespace Auto_Invest
             var orderChannel = Channel.CreateUnbounded<CompletedOrder>();
             var tickChannel = Channel.CreateUnbounded<TickPosition>();
 
-            _mediator.RegisterCompletedOrderChannel(orderChannel);
-            _mediator.RegisterTickPositionChannel(tickChannel);
+            _mediator.RegisterCompletedOrderReader(orderChannel);
+            _mediator.RegisterTickPositionReader(tickChannel);
 
             foreach (var contractId in contractIds)
             {

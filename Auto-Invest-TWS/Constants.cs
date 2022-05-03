@@ -1,4 +1,4 @@
-﻿namespace Auto_Invest
+﻿namespace Auto_Invest_TWS
 {
     public static class SecTypes
     {

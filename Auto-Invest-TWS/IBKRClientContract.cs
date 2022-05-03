@@ -1,12 +1,9 @@
-﻿using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-using Auto_Invest_Strategy;
-using CoreBot;
+﻿using Auto_Invest;
 using IBApi;
 using Contract = IBApi.Contract;
+using Auto_Invest_Strategy;
 
-namespace Auto_Invest
+namespace Auto_Invest_TWS
 {
     public class IBKRClientContract : IContractClient
     {

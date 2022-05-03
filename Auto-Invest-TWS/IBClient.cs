@@ -5,7 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using IBApi;
 
-namespace CoreBot
+namespace Auto_Invest_TWS
 {
     public class IBClient : EWrapper
     {

@@ -114,8 +114,6 @@ Resources:
       KeySchema:
         - AttributeName: Symbol
           KeyType: HASH
-        - AttributeName: Symbol
-          KeyType: RANGE
       BillingMode: PAY_PER_REQUEST  
 
   InstanceProfile:

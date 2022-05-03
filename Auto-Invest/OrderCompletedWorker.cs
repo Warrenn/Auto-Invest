@@ -1,7 +1,4 @@
-﻿using System.Net.Http.Headers;
-using Auto_Invest_Strategy;
-
-namespace Auto_Invest
+﻿namespace Auto_Invest
 {
     public class OrderCompletedWorker : BackgroundService
     {

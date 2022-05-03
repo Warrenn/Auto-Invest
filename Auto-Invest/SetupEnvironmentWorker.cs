@@ -87,6 +87,7 @@ namespace Auto_Invest
                 var contractManager = new ContractManager(client);
                 var strategy = new TrailingBuySellStrategy(contractManager);
                 contractManager.RegisterContract(contract);
+
                 strategies[contract.Symbol] = strategy;
                 contractChanges.Add(contract.Changes);
             }

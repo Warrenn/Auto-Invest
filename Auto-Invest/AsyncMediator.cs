@@ -6,22 +6,22 @@ namespace Auto_Invest
     public class AsyncMediator : IMediator
     {
         private readonly TaskCompletionSource<ChannelReader<CompletedOrder>> _completedOrderReaderSource =
-            new(TaskCreationOptions.LongRunning);
+            new();
 
         private readonly TaskCompletionSource<ChannelReader<TickPosition>> _tickPositionReader =
-            new(TaskCreationOptions.LongRunning);
+            new();
 
         private readonly TaskCompletionSource<IEnumerable<ChannelReader<Contract>>> _contractChangesReader =
-            new(TaskCreationOptions.LongRunning);
+            new();
 
         private readonly TaskCompletionSource<IEnumerable<ContractExtended>> _contracts =
-            new(TaskCreationOptions.LongRunning);
+            new();
 
         private readonly TaskCompletionSource<IDictionary<string, IOrderCompletion>> _completionCallbacks =
-            new(TaskCreationOptions.LongRunning);
+            new();
 
         private readonly TaskCompletionSource<IDictionary<string, IRecordTick>> _strategies =
-            new(TaskCreationOptions.LongRunning);
+            new();
 
         public Task<ChannelReader<CompletedOrder>> GetCompletedOrderReaderAsync() =>
             _completedOrderReaderSource.Task;

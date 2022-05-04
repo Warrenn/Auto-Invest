@@ -4,9 +4,9 @@ namespace Auto_Invest.Rest
 {
     public interface IWebService
     {
-        Task<AccountDetails> GetAccountDetailsAsync();
-        Task<ContractDetails> GetContractDetailsAsync(string symbol);
-        Task CancelOrder(string accountId, int orderId);
-        Task<ContractResult> PlaceStopLimit(ContractExtended contract, StopLimit stopLimit);
+        Task<AccountDetails> GetAccountDetailsAsync(CancellationToken stoppingToken = default);
+        Task<ContractDetails> GetContractDetailsAsync(string symbol, CancellationToken stoppingToken = default);
+        Task CancelOrder(string accountId, int orderId, CancellationToken stoppingToken = default);
+        Task<ContractResult> PlaceStopLimit(ContractExtended contract, StopLimit stopLimit, CancellationToken stoppingToken = default);
     }
 }

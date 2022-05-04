@@ -3,7 +3,13 @@
     "Auto_Invest": {
       "commandName": "Project",
       "environmentVariables": {
-        "DOTNET_ENVIRONMENT": "Development"
+        "GATEWAY_URL": "https://localhost:5000",
+        "AWS_REGION": "af-south-1",
+        "AWS_PROFILE": "busyweb-admin-role",
+        "WEBSOCKET_URL": "wss://localhost:5000",
+        "DOTNET_ENVIRONMENT": "Development",
+        "IBEAM_RESULTS_DIR": "C:\\workbench\\experiment\\ibeam\\results",
+        "IBEAM_RESULTS_FILENAME": "results.json"
       },
       "dotnetRunMessages": true
     },

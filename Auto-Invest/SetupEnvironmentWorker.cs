@@ -38,18 +38,18 @@ namespace Auto_Invest
             if (string.IsNullOrWhiteSpace(_serverConfig.ResultsFile)) throw new ArgumentNullException(nameof(_serverConfig.ResultsFile));
             if (string.IsNullOrWhiteSpace(_serverConfig.HostUrl)) throw new ArgumentNullException(nameof(_serverConfig.HostUrl));
 
-            if (!File.Exists(_serverConfig.ResultsFile))
-            {
-                var watcher = new FileSystemWatcher(_serverConfig.ResultsFile);
-                watcher.WaitForChanged(WatcherChangeTypes.Created);
-                File.Delete(_serverConfig.ResultsFile);
-            }
+            //if (!File.Exists(_serverConfig.ResultsFile))
+            //{
+            //    var watcher = new FileSystemWatcher(Path.GetDirectoryName(_serverConfig.ResultsFile) ?? string.Empty);
+            //    watcher.WaitForChanged(WatcherChangeTypes.Created);
+            //}
 
-            var gateWayResultJson = await File.ReadAllTextAsync(_serverConfig.ResultsFile, stoppingToken);
-            var gateWayResult = JsonSerializer.Deserialize<GateWayResult>(gateWayResultJson) ?? throw new Exception($"{_serverConfig.ResultsFile} failed Json conversion");
+            //var gateWayResultJson = await File.ReadAllTextAsync(_serverConfig.ResultsFile, stoppingToken);
+            //var gateWayResult = JsonSerializer.Deserialize<GateWayResult>(gateWayResultJson) ?? throw new Exception($"{_serverConfig.ResultsFile} failed Json conversion");
+            //File.Delete(_serverConfig.ResultsFile);
 
-            if (gateWayResult.ShutDown) throw new Exception("Gateway is shut down");
-            if (!gateWayResult.Authenticated) throw new Exception("Gateway is not Authenticated");
+            //if (gateWayResult.ShutDown) throw new Exception("Gateway is shut down");
+            //if (!gateWayResult.Authenticated) throw new Exception("Gateway is not Authenticated");
 
             var contracts = await _contractDataService.GetContractDataAsync();
             var details = await _webService.GetAccountDetailsAsync();

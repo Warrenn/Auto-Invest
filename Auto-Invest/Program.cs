@@ -1,4 +1,17 @@
+using Amazon.Runtime;
+using Amazon.Runtime.CredentialManagement;
 using Auto_Invest;
+using Auto_Invest.DynamoDb;
+using Auto_Invest.Rest;
+
+
+FallbackCredentialsFactory.CredentialsGenerators.Insert(0, () =>
+{
+    var profileName = Environment.GetEnvironmentVariable("AWS_PROFILE");
+    if (string.IsNullOrWhiteSpace(profileName)) return null;
+    var chain = new CredentialProfileStoreChain();
+    return !chain.TryGetProfile(profileName, out var profile) ? null : new BasicAWSCredentials(profile.Options.AccessKey, profile.Options.SecretKey);
+});
 
 var host = Host.CreateDefaultBuilder(args)
     .ConfigureServices(services =>
@@ -6,15 +19,19 @@ var host = Host.CreateDefaultBuilder(args)
         services
             .AddSingleton(new LocalServerConfig
             {
-                ResultsFile = Environment.GetEnvironmentVariable(""),
-                HostUrl = Environment.GetEnvironmentVariable("")
+                ResultsFile =
+                    $"{Environment.GetEnvironmentVariable("IBEAM_RESULTS_DIR")}/{Environment.GetEnvironmentVariable("IBEAM_RESULTS_FILENAME")}",
+                HostUrl = Environment.GetEnvironmentVariable("GATEWAY_URL"),
+                WebSocketUrl = Environment.GetEnvironmentVariable("WEBSOCKET_URL")
             })
-            .AddScoped<IMediator, AsyncMediator>()
-            .AddHostedService<SetupEnvironmentWorker>()
-            .AddHostedService<ContractChangesWorker>()
-            .AddHostedService<OrderCompletedWorker>()
-            .AddHostedService<TickWorker>()
-            .AddHostedService<WebSocketWorker>();
+            .AddSingleton<IMediator, AsyncMediator>()
+            .AddSingleton<IContractDataService, ContractDataService>()
+            .AddSingleton<IWebService, WebService>()
+            .AddHostedService<SetupEnvironmentWorker>();
+        //.AddHostedService<ContractChangesWorker>()
+        //.AddHostedService<OrderCompletedWorker>()
+        //.AddHostedService<TickWorker>()
+        //.AddHostedService<WebSocketWorker>();
     })
     .Build();
 

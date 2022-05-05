@@ -1,3 +1,4 @@
+using System.Net;
 using Amazon.Runtime;
 using Amazon.Runtime.CredentialManagement;
 using Auto_Invest;
@@ -10,7 +11,8 @@ FallbackCredentialsFactory.CredentialsGenerators.Insert(0, () =>
     var profileName = Environment.GetEnvironmentVariable("AWS_PROFILE");
     if (string.IsNullOrWhiteSpace(profileName)) return null;
     var chain = new CredentialProfileStoreChain();
-    return !chain.TryGetProfile(profileName, out var profile) ? null : new BasicAWSCredentials(profile.Options.AccessKey, profile.Options.SecretKey);
+    var attempt = chain.TryGetProfile(profileName, out var profile);
+    return !attempt || profile == null ? null : new BasicAWSCredentials(profile.Options.AccessKey, profile.Options.SecretKey);
 });
 
 var host = Host.CreateDefaultBuilder(args)

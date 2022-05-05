@@ -2,8 +2,8 @@
 {
     public interface IContractDataService
     {
-        Task<ContractData[]> GetContractDataAsync();
-        Task SaveContract(ContractData contractData);
-        Task DeleteContract(ContractData contractData);
+        Task<ContractData[]> GetContractDataAsync(CancellationToken cancellationToken = default);
+        Task SaveContract(ContractData contractData, CancellationToken cancellation = default);
+        Task DeleteContract(ContractData contractData, CancellationToken cancellation = default);
     }
 }

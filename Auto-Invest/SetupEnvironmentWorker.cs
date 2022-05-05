@@ -38,21 +38,21 @@ namespace Auto_Invest
             if (string.IsNullOrWhiteSpace(_serverConfig.ResultsFile)) throw new ArgumentNullException(nameof(_serverConfig.ResultsFile));
             if (string.IsNullOrWhiteSpace(_serverConfig.HostUrl)) throw new ArgumentNullException(nameof(_serverConfig.HostUrl));
 
-            //if (!File.Exists(_serverConfig.ResultsFile))
-            //{
-            //    var watcher = new FileSystemWatcher(Path.GetDirectoryName(_serverConfig.ResultsFile) ?? string.Empty);
-            //    watcher.WaitForChanged(WatcherChangeTypes.Created);
-            //}
+            if (!File.Exists(_serverConfig.ResultsFile))
+            {
+                var watcher = new FileSystemWatcher(Path.GetDirectoryName(_serverConfig.ResultsFile) ?? string.Empty);
+                watcher.WaitForChanged(WatcherChangeTypes.Created);
+            }
 
-            //var gateWayResultJson = await File.ReadAllTextAsync(_serverConfig.ResultsFile, stoppingToken);
-            //var gateWayResult = JsonSerializer.Deserialize<GateWayResult>(gateWayResultJson) ?? throw new Exception($"{_serverConfig.ResultsFile} failed Json conversion");
-            //File.Delete(_serverConfig.ResultsFile);
+            var gateWayResultJson = await File.ReadAllTextAsync(_serverConfig.ResultsFile, stoppingToken);
+            var gateWayResult = JsonSerializer.Deserialize<GateWayResult>(gateWayResultJson) ?? throw new Exception($"{_serverConfig.ResultsFile} failed Json conversion");
+            File.Delete(_serverConfig.ResultsFile);
 
-            //if (gateWayResult.ShutDown) throw new Exception("Gateway is shut down");
-            //if (!gateWayResult.Authenticated) throw new Exception("Gateway is not Authenticated");
+            if (gateWayResult.ShutDown) throw new Exception("Gateway is shut down");
+            if (!gateWayResult.Authenticated) throw new Exception("Gateway is not Authenticated");
 
-            var contracts = await _contractDataService.GetContractDataAsync();
-            var details = await _webService.GetAccountDetailsAsync();
+            var contracts = await _contractDataService.GetContractDataAsync(stoppingToken);
+            var details = await _webService.GetAccountDetailsAsync(stoppingToken);
             var accountId = details.AccountId;
 
             var extendedList = new List<ContractExtended>();
@@ -69,11 +69,11 @@ namespace Auto_Invest
                 if (string.IsNullOrWhiteSpace(contract.ConId))
                 {
                     saveChanges = true;
-                    var contractDetails = await _webService.GetContractDetailsAsync(contract.Symbol);
+                    var contractDetails = await _webService.GetContractDetailsAsync(contract.Symbol, stoppingToken);
                     contract.ConId = contractDetails.ContractId;
                 }
 
-                if (saveChanges) await _contractDataService.SaveContract(contract);
+                if (saveChanges) await _contractDataService.SaveContract(contract, stoppingToken);
 
                 var extendedContract = new ContractConverter(contract).Contract;
                 extendedList.Add(extendedContract);

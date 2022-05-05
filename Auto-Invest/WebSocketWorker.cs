@@ -22,8 +22,10 @@ namespace Auto_Invest
             var contractIds = await _mediator.GetContractsAsync();
 
             using var clientSocket = new ClientWebSocket();
-            //todo:get the proper url here
-            await clientSocket.ConnectAsync(new Uri($"{_serverConfig.HostUrl}/ws/socketEndPoint"), stoppingToken);
+            clientSocket.Options.RemoteCertificateValidationCallback = (_, _, _, _) => true;
+            clientSocket.Options.SetRequestHeader("User-Agent", "Auto-Invest");
+
+            await clientSocket.ConnectAsync(new Uri($"{_serverConfig.WebSocketUrl}/ws/socketEndPoint"), stoppingToken);
 
             var orderChannel = Channel.CreateUnbounded<CompletedOrder>();
             var tickChannel = Channel.CreateUnbounded<TickPosition>();

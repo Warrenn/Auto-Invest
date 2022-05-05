@@ -4,5 +4,6 @@
     {
         public string? ResultsFile { get; set; }
         public string? HostUrl { get; set; }
+        public string? WebSocketUrl { get; set; }
     }
 }

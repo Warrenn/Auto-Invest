@@ -94,12 +94,11 @@ namespace Auto_Invest.Rest
             var url = $"{_serverConfig.HostUrl}/v1/api/trsrv/stocks?symbols={symbol}";
             var accountData = await GetAsync<JsonElement>(client, url, stoppingToken);
             var conId =
-                accountData.GetProperty(symbol)[0].GetProperty("contracts")[0].GetProperty("conid").GetString() ?? "";
+                accountData.GetProperty(symbol)[0].GetProperty("contracts")[0].GetProperty("conid").GetInt32();
 
-            if (string.IsNullOrWhiteSpace(conId)) throw new Exception("Contract Id is not found");
             return new ContractDetails
             {
-                ContractId = conId,
+                ContractId = $"{conId}",
                 ContractSymbol = symbol
             };
         }

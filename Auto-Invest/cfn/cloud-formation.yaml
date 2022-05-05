@@ -108,12 +108,16 @@ Resources:
     Type: AWS::DynamoDB::Table
     Properties:
       AttributeDefinitions:
+        - AttributeName: Environment
+          AttributeType: S
         - AttributeName: Symbol
           AttributeType: S
       TableName: auto-invest-contract
       KeySchema:
-        - AttributeName: Symbol
+        - AttributeName: Environment
           KeyType: HASH
+        - AttributeName: Symbol
+          KeyType: RANGE
       BillingMode: PAY_PER_REQUEST  
 
   InstanceProfile:
@@ -208,6 +212,7 @@ Resources:
             export ECR_REPO=busyweb/ibeam
             export GATEWAY_URL=https://localhost:5000
             export WEBSOCKET_URL=wss://localhost:5000
+            export ENVNAME=${EnvName}
 
             rpm -Uvh https://packages.microsoft.com/config/centos/7/packages-microsoft-prod.rpm
             yum update -y

@@ -24,16 +24,17 @@ var host = Host.CreateDefaultBuilder(args)
                 ResultsFile =
                     $"{Environment.GetEnvironmentVariable("IBEAM_RESULTS_DIR")}/{Environment.GetEnvironmentVariable("IBEAM_RESULTS_FILENAME")}",
                 HostUrl = Environment.GetEnvironmentVariable("GATEWAY_URL"),
-                WebSocketUrl = Environment.GetEnvironmentVariable("WEBSOCKET_URL")
+                WebSocketUrl = Environment.GetEnvironmentVariable("WEBSOCKET_URL"),
+                Environment = Environment.GetEnvironmentVariable("ENVNAME")
             })
             .AddSingleton<IMediator, AsyncMediator>()
             .AddSingleton<IContractDataService, ContractDataService>()
             .AddSingleton<IWebService, WebService>()
-            .AddHostedService<SetupEnvironmentWorker>();
-        //.AddHostedService<ContractChangesWorker>()
-        //.AddHostedService<OrderCompletedWorker>()
-        //.AddHostedService<TickWorker>()
-        //.AddHostedService<WebSocketWorker>();
+            .AddHostedService<SetupEnvironmentWorker>()
+            //.AddHostedService<ContractChangesWorker>()
+            //.AddHostedService<OrderCompletedWorker>()
+            //.AddHostedService<TickWorker>()
+            .AddHostedService<WebSocketWorker>();
     })
     .Build();
 

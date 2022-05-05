@@ -2,7 +2,7 @@ param (
     [String]
     $VpcId = "",
     [String]
-    $AwsProfile = "Default",
+    $AwsProfile = "busyweb-admin-role",
     [String]
     $Region = "af-south-1"
 )

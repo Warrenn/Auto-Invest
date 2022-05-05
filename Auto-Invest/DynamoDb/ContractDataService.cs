@@ -5,15 +5,21 @@ namespace Auto_Invest.DynamoDb
 {
     public class ContractDataService : IContractDataService
     {
+        private readonly LocalServerConfig _serverConfig;
 
         private static readonly AmazonDynamoDBClient Client = new();
+
+        public ContractDataService(LocalServerConfig serverConfig)
+        {
+            _serverConfig = serverConfig;
+        }
 
         #region Implementation of IContractDataService
 
         public async Task<ContractData[]> GetContractDataAsync(CancellationToken cancellation = default)
         {
             var context = new DynamoDBContext(Client);
-            var results = await context.ScanAsync<ContractData>(Enumerable.Empty<ScanCondition>()).GetRemainingAsync(cancellation);
+            var results = await context.QueryAsync<ContractData>(_serverConfig.Environment).GetRemainingAsync(cancellation);
             return results.ToArray();
         }
 

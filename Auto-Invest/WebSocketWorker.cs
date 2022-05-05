@@ -25,16 +25,18 @@ namespace Auto_Invest
             clientSocket.Options.RemoteCertificateValidationCallback = (_, _, _, _) => true;
             clientSocket.Options.SetRequestHeader("User-Agent", "Auto-Invest");
 
-            await clientSocket.ConnectAsync(new Uri($"{_serverConfig.WebSocketUrl}/ws/socketEndPoint"), stoppingToken);
+            await clientSocket.ConnectAsync(new Uri($"{_serverConfig.WebSocketUrl}/v1/api/ws"), stoppingToken);
 
             var orderChannel = Channel.CreateUnbounded<CompletedOrder>();
             var tickChannel = Channel.CreateUnbounded<TickPosition>();
 
-            _mediator.RegisterCompletedOrderReader(orderChannel);
-            _mediator.RegisterTickPositionReader(tickChannel);
+            _mediator.RegisterCompletedOrderReader(orderChannel.Reader);
+            _mediator.RegisterTickPositionReader(tickChannel.Reader);
+            var symbolLookup = new Dictionary<string, string>();
 
             foreach (var contractId in contractIds)
             {
+                //todo make this a function that takes in string and socket
                 var subscription = $"smd+{contractId.ConId}+{{\"fields\":[\"31\"]}}";
                 var subBytes = Encoding.UTF8.GetBytes(subscription);
                 await clientSocket.SendAsync(
@@ -42,6 +44,9 @@ namespace Auto_Invest
                     WebSocketMessageType.Text,
                     true,
                     stoppingToken);
+
+                if (string.IsNullOrEmpty(contractId.ConId)) continue;
+                symbolLookup[contractId.ConId] = contractId.Symbol;
             }
 
             while (
@@ -49,18 +54,44 @@ namespace Auto_Invest
                 clientSocket.CloseStatus == null &&
                 clientSocket.State == WebSocketState.Open)
             {
-                var stream = await ReceiveMessageAsync(clientSocket, stoppingToken);
+                var socketElement = await ReceiveMessageAsync(clientSocket, stoppingToken);
 
-                var completedOrder = await JsonSerializer.DeserializeAsync<CompletedOrder>(stream, cancellationToken: stoppingToken);
-                if (completedOrder != null) await orderChannel.Writer.WriteAsync(completedOrder, stoppingToken);
+                //todo lets get another background service working here instead to pickup the JsonElement
+                var topic = socketElement.GetProperty("topic").GetString();
 
-                var tickPosition =
-                    await JsonSerializer.DeserializeAsync<TickPosition>(stream, cancellationToken: stoppingToken);
-                if (tickPosition != null) await tickChannel.Writer.WriteAsync(tickPosition, stoppingToken);
+                if (string.IsNullOrWhiteSpace(topic)) continue;
+
+                if (topic[..3] == "smd")
+                {
+                    var conId = topic[4..];
+                    if (!symbolLookup.ContainsKey(conId)) continue;
+                    var symbol = symbolLookup[conId];
+
+                    var priceString = socketElement.GetProperty("31").GetString() ?? "";
+                    if (!decimal.TryParse(priceString, out var price)) continue;
+
+                    var position = new TickPosition
+                    {
+                        Position = price,
+                        Symbol = symbol
+                    };
+
+                    await tickChannel.Writer.WriteAsync(position, stoppingToken);
+                }
+
+                //todo finish this up for sure
+                if (topic == "str")
+                {
+                    var args = socketElement.GetProperty("args");
+                    foreach (var arg in args.EnumerateArray())
+                    {
+
+                    }
+                }
             }
         }
 
-        private static async Task<Stream> ReceiveMessageAsync(WebSocket socket, CancellationToken cancel)
+        private static async Task<JsonElement> ReceiveMessageAsync(WebSocket socket, CancellationToken cancel)
         {
             await using var stream = new MemoryStream();
             var buffer = WebSocket.CreateServerBuffer(1024);
@@ -75,7 +106,8 @@ namespace Auto_Invest
             }
 
             stream.Position = 0;
-            return stream;
+            var element = await JsonSerializer.DeserializeAsync<JsonElement>(stream, cancellationToken: cancel);
+            return element;
         }
     }
 }

@@ -6,10 +6,6 @@ using Xunit;
 using Shouldly;
 using Moq;
 using static System.Math;
-using static Newtonsoft.Json.JsonConvert;
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.IO;
 using System.Linq;
 using TestStack.BDDfy.Configuration;
 

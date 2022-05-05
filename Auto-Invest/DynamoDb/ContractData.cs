@@ -7,6 +7,9 @@ namespace Auto_Invest.DynamoDb
     public class ContractData
     {
         [DynamoDBHashKey]
+        public string Environment { get; set; } = "";
+
+        [DynamoDBRangeKey]
         public string Symbol { get; set; } = "";
 
         [DynamoDBProperty]

@@ -47,7 +47,7 @@ namespace Auto_Invest
                         UpperBound = contract.UpperBound
                     };
 
-                    await _contractDataService.SaveContract(contractData);
+                    await _contractDataService.SaveContract(contractData, stoppingToken);
                 }
             }
         }

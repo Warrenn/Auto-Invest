@@ -41,11 +41,11 @@ namespace Auto_Invest
         public Task<IDictionary<string, IRecordTick>> GetContractStrategiesAsync() =>
             _strategies.Task;
 
-        public void RegisterCompletedOrderReader(ChannelReader<CompletedOrder> channel) =>
-            _completedOrderReaderSource.SetResult(channel);
+        public void RegisterCompletedOrderReader(ChannelReader<CompletedOrder> channelReader) =>
+            _completedOrderReaderSource.SetResult(channelReader);
 
-        public void RegisterTickPositionReader(ChannelReader<TickPosition> channel) =>
-            _tickPositionReader.SetResult(channel);
+        public void RegisterTickPositionReader(ChannelReader<TickPosition> channelReader) =>
+            _tickPositionReader.SetResult(channelReader);
 
         public void RegisterContracts(IEnumerable<ContractExtended> extendedList) =>
             _contracts.SetResult(extendedList);

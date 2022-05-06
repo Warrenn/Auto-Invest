@@ -15,7 +15,8 @@ FallbackCredentialsFactory.CredentialsGenerators.Insert(0, () =>
     return !attempt || profile == null ? null : new BasicAWSCredentials(profile.Options.AccessKey, profile.Options.SecretKey);
 });
 
-var host = Host.CreateDefaultBuilder(args)
+var host = Host
+    .CreateDefaultBuilder(args)
     .ConfigureServices(services =>
     {
         services
@@ -31,9 +32,10 @@ var host = Host.CreateDefaultBuilder(args)
             .AddSingleton<IContractDataService, ContractDataService>()
             .AddSingleton<IWebService, WebService>()
             .AddHostedService<SetupEnvironmentWorker>()
-            //.AddHostedService<ContractChangesWorker>()
-            //.AddHostedService<OrderCompletedWorker>()
-            //.AddHostedService<TickWorker>()
+            .AddHostedService<WebSocketResultsWorker>()
+            .AddHostedService<ContractChangesWorker>()
+            .AddHostedService<OrderCompletedWorker>()
+            .AddHostedService<TickWorker>()
             .AddHostedService<WebSocketWorker>();
     })
     .Build();

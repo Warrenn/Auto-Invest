@@ -7,8 +7,6 @@ namespace Auto_Invest.DynamoDb
     {
         private readonly LocalServerConfig _serverConfig;
 
-        private static readonly AmazonDynamoDBClient Client = new();
-
         public ContractDataService(LocalServerConfig serverConfig)
         {
             _serverConfig = serverConfig;
@@ -18,20 +16,23 @@ namespace Auto_Invest.DynamoDb
 
         public async Task<ContractData[]> GetContractDataAsync(CancellationToken cancellation = default)
         {
-            var context = new DynamoDBContext(Client);
+            AmazonDynamoDBClient client = new();
+            var context = new DynamoDBContext(client);
             var results = await context.QueryAsync<ContractData>(_serverConfig.Environment).GetRemainingAsync(cancellation);
             return results.ToArray();
         }
 
         public async Task SaveContract(ContractData contractData, CancellationToken cancellation = default)
         {
-            var context = new DynamoDBContext(Client);
+            AmazonDynamoDBClient client = new();
+            var context = new DynamoDBContext(client);
             await context.SaveAsync(contractData, cancellation);
         }
 
         public async Task DeleteContract(ContractData contractData, CancellationToken cancellation = default)
         {
-            var context = new DynamoDBContext(Client);
+            AmazonDynamoDBClient client = new();
+            var context = new DynamoDBContext(client);
             await context.DeleteAsync(contractData, cancellation);
         }
 

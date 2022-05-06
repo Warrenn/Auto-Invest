@@ -2,7 +2,6 @@
 using System.Text;
 using System.Text.Json;
 using System.Threading.Channels;
-using Auto_Invest_Strategy;
 
 namespace Auto_Invest
 {
@@ -17,6 +16,17 @@ namespace Auto_Invest
             _mediator = mediator;
         }
 
+        private static async Task SendAsync(WebSocket clientWebSocket, string data,
+            CancellationToken cancellationToken)
+        {
+            var subBytes = Encoding.UTF8.GetBytes(data);
+            await clientWebSocket.SendAsync(
+                new ArraySegment<byte>(subBytes),
+                WebSocketMessageType.Text,
+                true,
+                cancellationToken);
+        }
+
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
             var contractIds = await _mediator.GetContractsAsync();
@@ -24,30 +34,19 @@ namespace Auto_Invest
             using var clientSocket = new ClientWebSocket();
             clientSocket.Options.RemoteCertificateValidationCallback = (_, _, _, _) => true;
             clientSocket.Options.SetRequestHeader("User-Agent", "Auto-Invest");
-
             await clientSocket.ConnectAsync(new Uri($"{_serverConfig.WebSocketUrl}/v1/api/ws"), stoppingToken);
 
-            var orderChannel = Channel.CreateUnbounded<CompletedOrder>();
-            var tickChannel = Channel.CreateUnbounded<TickPosition>();
-
-            _mediator.RegisterCompletedOrderReader(orderChannel.Reader);
-            _mediator.RegisterTickPositionReader(tickChannel.Reader);
-            var symbolLookup = new Dictionary<string, string>();
+            var resultsChannel = Channel.CreateUnbounded<JsonElement>();
+            _mediator.RegisterWebSocketResults(resultsChannel.Reader);
 
             foreach (var contractId in contractIds)
             {
-                //todo make this a function that takes in string and socket
-                var subscription = $"smd+{contractId.ConId}+{{\"fields\":[\"31\"]}}";
-                var subBytes = Encoding.UTF8.GetBytes(subscription);
-                await clientSocket.SendAsync(
-                    new ArraySegment<byte>(subBytes),
-                    WebSocketMessageType.Text,
-                    true,
-                    stoppingToken);
-
                 if (string.IsNullOrEmpty(contractId.ConId)) continue;
-                symbolLookup[contractId.ConId] = contractId.Symbol;
+
+                await SendAsync(clientSocket, $"smd+{contractId.ConId}+{{\"fields\":[\"31\"]}}", stoppingToken);
             }
+
+            await SendAsync(clientSocket, "str+{}", stoppingToken);
 
             while (
                 !stoppingToken.IsCancellationRequested &&
@@ -55,39 +54,7 @@ namespace Auto_Invest
                 clientSocket.State == WebSocketState.Open)
             {
                 var socketElement = await ReceiveMessageAsync(clientSocket, stoppingToken);
-
-                //todo lets get another background service working here instead to pickup the JsonElement
-                var topic = socketElement.GetProperty("topic").GetString();
-
-                if (string.IsNullOrWhiteSpace(topic)) continue;
-
-                if (topic[..3] == "smd")
-                {
-                    var conId = topic[4..];
-                    if (!symbolLookup.ContainsKey(conId)) continue;
-                    var symbol = symbolLookup[conId];
-
-                    var priceString = socketElement.GetProperty("31").GetString() ?? "";
-                    if (!decimal.TryParse(priceString, out var price)) continue;
-
-                    var position = new TickPosition
-                    {
-                        Position = price,
-                        Symbol = symbol
-                    };
-
-                    await tickChannel.Writer.WriteAsync(position, stoppingToken);
-                }
-
-                //todo finish this up for sure
-                if (topic == "str")
-                {
-                    var args = socketElement.GetProperty("args");
-                    foreach (var arg in args.EnumerateArray())
-                    {
-
-                    }
-                }
+                await resultsChannel.Writer.WriteAsync(socketElement, stoppingToken);
             }
         }
 

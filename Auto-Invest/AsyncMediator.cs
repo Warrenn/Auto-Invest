@@ -1,4 +1,5 @@
-﻿using System.Threading.Channels;
+﻿using System.Text.Json;
+using System.Threading.Channels;
 using Auto_Invest_Strategy;
 
 namespace Auto_Invest
@@ -23,11 +24,18 @@ namespace Auto_Invest
         private readonly TaskCompletionSource<IDictionary<string, IRecordTick>> _strategies =
             new();
 
+        private readonly TaskCompletionSource<ChannelReader<JsonElement>> _websocketSource =
+            new();
+
+
         public Task<ChannelReader<CompletedOrder>> GetCompletedOrderReaderAsync() =>
             _completedOrderReaderSource.Task;
 
         public Task<ChannelReader<TickPosition>> GetTickPositionReaderAsync() =>
             _tickPositionReader.Task;
+
+        public Task<ChannelReader<JsonElement>> GetWebSocketResultsReaderAsync() =>
+            _websocketSource.Task;
 
         public Task<IEnumerable<ChannelReader<Contract>>> GetContractChangesReaderAsync() =>
             _contractChangesReader.Task;
@@ -40,6 +48,10 @@ namespace Auto_Invest
 
         public Task<IDictionary<string, IRecordTick>> GetContractStrategiesAsync() =>
             _strategies.Task;
+
+
+        public void RegisterWebSocketResults(ChannelReader<JsonElement> channelReader) =>
+            _websocketSource.SetResult(channelReader);
 
         public void RegisterCompletedOrderReader(ChannelReader<CompletedOrder> channelReader) =>
             _completedOrderReaderSource.SetResult(channelReader);

@@ -7,25 +7,38 @@ namespace Auto_Invest
     {
         private readonly IContractDataService _contractDataService;
         private readonly IMediator _mediator;
+        private readonly LocalServerConfig _serverConfig;
+        private readonly ILogger<ContractChangesWorker> _logger;
 
-        public ContractChangesWorker(IContractDataService contractDataService, IMediator mediator)
+        public ContractChangesWorker(
+            IContractDataService contractDataService,
+            IMediator mediator,
+            LocalServerConfig serverConfig,
+            ILogger<ContractChangesWorker> logger)
         {
             _contractDataService = contractDataService;
             _mediator = mediator;
+            _serverConfig = serverConfig;
+            _logger = logger;
         }
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
+            _logger.LogInformation("Started but awaiting Contracts and Contracts Reader");
             var contracts = (await _mediator.GetContractsAsync()).ToArray();
             var readers = await _mediator.GetContractChangesReaderAsync();
+            _logger.LogInformation("Reading contract changes");
 
             foreach (var channelReader in readers)
             {
                 await foreach (var contract in channelReader.ReadAllAsync(stoppingToken))
                 {
                     var extendedContract = contracts.First(_ => _.Symbol == contract.Symbol);
+                    _logger.LogTrace("Contract Updated {ConId} {Symbol} {RunStatue}", extendedContract.ConId, contract.Symbol, contract.RunState);
+
                     var contractData = new ContractData
                     {
+                        Environment = _serverConfig.Environment,
                         Funding = contract.Funding,
                         AccountId = extendedContract.AccountId,
                         AveragePrice = contract.AveragePrice,

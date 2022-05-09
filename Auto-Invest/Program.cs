@@ -1,4 +1,3 @@
-using System.Net;
 using Amazon.Runtime;
 using Amazon.Runtime.CredentialManagement;
 using Auto_Invest;
@@ -26,7 +25,7 @@ var host = Host
                     $"{Environment.GetEnvironmentVariable("IBEAM_RESULTS_DIR")}/{Environment.GetEnvironmentVariable("IBEAM_RESULTS_FILENAME")}",
                 HostUrl = Environment.GetEnvironmentVariable("GATEWAY_URL"),
                 WebSocketUrl = Environment.GetEnvironmentVariable("WEBSOCKET_URL"),
-                Environment = Environment.GetEnvironmentVariable("ENVNAME")
+                Environment = Environment.GetEnvironmentVariable("ENVNAME") ?? throw new Exception("ENVNAME is not set")
             })
             .AddSingleton<IMediator, AsyncMediator>()
             .AddSingleton<IContractDataService, ContractDataService>()

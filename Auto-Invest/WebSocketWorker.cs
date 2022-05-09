@@ -9,14 +9,19 @@ namespace Auto_Invest
     {
         private readonly LocalServerConfig _serverConfig;
         private readonly IMediator _mediator;
+        private readonly ILogger<WebSocketWorker> _logger;
 
-        public WebSocketWorker(LocalServerConfig serverConfig, IMediator mediator)
+        public WebSocketWorker(LocalServerConfig serverConfig, IMediator mediator,
+            ILogger<WebSocketWorker> logger)
         {
             _serverConfig = serverConfig;
             _mediator = mediator;
+            _logger = logger;
         }
 
-        private static async Task SendAsync(WebSocket clientWebSocket, string data,
+        private static async Task SendAsync(
+            WebSocket clientWebSocket,
+            string data,
             CancellationToken cancellationToken)
         {
             var subBytes = Encoding.UTF8.GetBytes(data);
@@ -29,6 +34,7 @@ namespace Auto_Invest
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
+            _logger.LogInformation("Started WebSocketWorker awaiting dependencies");
             var contractIds = await _mediator.GetContractsAsync();
 
             using var clientSocket = new ClientWebSocket();
@@ -43,9 +49,11 @@ namespace Auto_Invest
             {
                 if (string.IsNullOrEmpty(contractId.ConId)) continue;
 
+                _logger.LogInformation($"Listening for smd+{contractId.ConId}+{{\"fields\":[\"31\"]}}");
                 await SendAsync(clientSocket, $"smd+{contractId.ConId}+{{\"fields\":[\"31\"]}}", stoppingToken);
             }
 
+            _logger.LogInformation("Listening for str");
             await SendAsync(clientSocket, "str+{}", stoppingToken);
 
             while (

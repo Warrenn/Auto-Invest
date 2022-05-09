@@ -12,6 +12,7 @@ namespace Auto_Invest
         private readonly IWebService _webService;
         private readonly IContractDataService _contractDataService;
         private readonly IMediator _mediator;
+        private readonly ILogger<SetupEnvironmentWorker> _logger;
 
         public class GateWayResult
         {
@@ -23,18 +24,21 @@ namespace Auto_Invest
             LocalServerConfig serverConfig,
             IWebService webService,
             IContractDataService contractDataService,
-            IMediator mediator)
+            IMediator mediator,
+            ILogger<SetupEnvironmentWorker> logger)
         {
             _serverConfig = serverConfig;
             _webService = webService;
             _contractDataService = contractDataService;
             _mediator = mediator;
+            _logger = logger;
         }
 
         #region Overrides of BackgroundService
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
+            _logger.LogInformation("Started Environment Setup");
             if (string.IsNullOrWhiteSpace(_serverConfig.ResultsFile)) throw new ArgumentNullException(nameof(_serverConfig.ResultsFile));
             if (string.IsNullOrWhiteSpace(_serverConfig.HostUrl)) throw new ArgumentNullException(nameof(_serverConfig.HostUrl));
 
@@ -96,6 +100,9 @@ namespace Auto_Invest
             _mediator.RegisterStrategies(strategies);
             _mediator.RegisterCompletionCallbacks(client.Completion);
             _mediator.RegisterContracts(extendedList);
+
+            _logger.LogInformation("Environment Worker Completeds Setup");
+
         }
 
         #endregion

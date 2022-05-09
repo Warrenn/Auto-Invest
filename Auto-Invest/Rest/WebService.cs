@@ -9,6 +9,7 @@ namespace Auto_Invest.Rest
     public class WebService : IWebService
     {
         private readonly LocalServerConfig _serverConfig;
+        private readonly ILogger<WebService> _logger;
         public const string JsonMediaType = "application/json";
 
         private static void AddDefaultHeaders(HttpClient client)
@@ -69,13 +70,15 @@ namespace Auto_Invest.Rest
             return httpClient;
         }
 
-        public WebService(LocalServerConfig serverConfig)
+        public WebService(LocalServerConfig serverConfig, ILogger<WebService> logger)
         {
             _serverConfig = serverConfig;
+            _logger = logger;
         }
 
         public async Task<AccountDetails> GetAccountDetailsAsync(CancellationToken stoppingToken = default)
         {
+            _logger.LogInformation("Getting Account Details");
             using var client = CreateClient();
             var url = $"{_serverConfig.HostUrl}/v1/api/iserver/accounts";
             var accountData = await GetAsync<JsonElement>(client, url, stoppingToken);
@@ -89,6 +92,7 @@ namespace Auto_Invest.Rest
 
         public async Task<ContractDetails> GetContractDetailsAsync(string symbol, CancellationToken stoppingToken = default)
         {
+            _logger.LogInformation("Getting Contract Details for {symbol}", symbol);
             using var client = CreateClient();
             symbol = symbol.ToUpper();
             var url = $"{_serverConfig.HostUrl}/v1/api/trsrv/stocks?symbols={symbol}";
@@ -105,6 +109,7 @@ namespace Auto_Invest.Rest
 
         public async Task CancelOrder(string accountId, int orderId, CancellationToken stoppingToken = default)
         {
+            _logger.LogInformation("Cancelling order {orderId}", orderId);
             using var client = CreateClient();
             var url = $"{_serverConfig.HostUrl}/v1/api/iserver/account/{accountId}/order/{orderId}";
             await DeleteAsync<JsonElement>(client, url, stoppingToken);
@@ -112,6 +117,8 @@ namespace Auto_Invest.Rest
 
         public async Task<ContractResult> PlaceStopLimit(ContractExtended contract, StopLimit stopLimit, CancellationToken stoppingToken = default)
         {
+            _logger.LogInformation("Placing Stop Limit {Symbol} {ActionSide} {StopPrice}", contract.Symbol,
+                stopLimit.Side, stopLimit.StopPrice);
             using var client = CreateClient();
             var orderDetails = new
             {

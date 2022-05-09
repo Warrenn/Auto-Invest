@@ -6,16 +6,19 @@ namespace Auto_Invest
     public class WebSocketResultsWorker : BackgroundService
     {
         private readonly IMediator _mediator;
+        private readonly ILogger<WebSocketResultsWorker> _logger;
 
-        public WebSocketResultsWorker(IMediator mediator)
+        public WebSocketResultsWorker(IMediator mediator, ILogger<WebSocketResultsWorker> logger)
         {
             _mediator = mediator;
+            _logger = logger;
         }
 
         #region Overrides of BackgroundService
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
+            _logger.LogInformation("WebSocketResultsWorker Started awaiting dependencies");
             var contractIds = await _mediator.GetContractsAsync();
             var socketResultsReader = await _mediator.GetWebSocketResultsReaderAsync();
 
@@ -29,6 +32,7 @@ namespace Auto_Invest
             _mediator.RegisterCompletedOrderReader(orderChannel.Reader);
             _mediator.RegisterTickPositionReader(tickChannel.Reader);
 
+            _logger.LogInformation("WebSocketResultsWorker processing websocket messages");
             await foreach (var socketElement in socketResultsReader.ReadAllAsync(stoppingToken))
             {
                 var topic = socketElement.GetProperty("topic").GetString();
@@ -44,6 +48,7 @@ namespace Auto_Invest
                     var priceString = socketElement.GetProperty("31").GetString() ?? "";
                     if (!decimal.TryParse(priceString, out var price)) continue;
 
+                    _logger.LogTrace("New position {conId} {symbol} {price}", conId, symbol, price);
                     var position = new TickPosition
                     {
                         Position = price,
@@ -70,6 +75,7 @@ namespace Auto_Invest
                     var side = arg.GetProperty("side").GetString() == "B" ? ActionSide.Buy : ActionSide.Sell;
                     netAmount -= commission;
 
+                    _logger.LogTrace("Trade Completed {conId} {side} {price}", conId, side, price);
                     var completedOrder = new CompletedOrder
                     {
                         Commission = commission,
